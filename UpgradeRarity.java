@@ -26,7 +26,8 @@ import javax.swing.Timer;
 enum UpgradeRarity {
     COMMON("Common", "普通"),
     UNCOMMON("Uncommon", "稀有"),
-    HIGH("High", "高稀有");
+    HIGH("Gold", "金色"),
+    RED("Weapon", "红色");
 
     final String label;
     final String labelZh;

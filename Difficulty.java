@@ -24,9 +24,9 @@ import javax.swing.Timer;
 
 
 enum Difficulty {
-    EASY("Easy", 25, 0.90),
-    NORMAL("Normal", 40, 1.00),
-    HARD("Hard", 60, 1.12);
+    EASY("Easy", 25, 1.00),
+    NORMAL("Normal", 40, 1.20),
+    HARD("Hard", 60, 1.5);
 
     final String label;
     final int typingSpeedWpm;

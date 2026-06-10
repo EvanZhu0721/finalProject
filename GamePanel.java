@@ -66,6 +66,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     static final int TRIGGER_TUNING_STEP_PERCENT = 20;
     static final int MAX_TRIGGER_TUNING_BONUS_PERCENT = 100;
     static final int MAX_HP_UPGRADE_BONUS = 36;
+    static final int MAX_BLUE_UPGRADES = 3;
+    static final int MAX_GOLD_TALENTS = 3;
+    static final int MAX_RED_WEAPONS = 1;
     static final int AUTO_CANNON_SURGE_TICKS = logicTicks(150);
     static final int PIERCING_DECAY_PERCENT = 20;
     static final int HOMING_SHOTGUN_BASE_PELLETS = 15;
@@ -195,6 +198,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     static final Color COLOR_RARITY_COMMON = new Color(130, 235, 175);
     static final Color COLOR_RARITY_UNCOMMON = new Color(95, 205, 255);
     static final Color COLOR_RARITY_HIGH = new Color(255, 218, 86);
+    static final Color COLOR_RARITY_RED = new Color(255, 82, 92);
     static final Color COLOR_UPGRADE_READY = new Color(255, 218, 86);
     static final Color COLOR_UPGRADE_READY_GLOW = new Color(255, 218, 86, 82);
     static final String[] WORDS = {
@@ -287,6 +291,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     int upgradeLevel = 0;
     int pendingUpgradeChoices = 0;
     int selectedUpgradeIndex = 0;
+    int selectedOverviewCardIndex = 0;
     int damageBonusPercent = 0;
     int fireRateBonusPercent = 0;
     int maxHpUpgradeBonus = 0;
@@ -297,6 +302,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     int crossfeedLevel = 0;
     int crossfeedCooldownTicks = 0;
     int crossfeedBonusTicks = 0;
+    int blueUpgradeCount = 0;
     int longWordRewardLevel = 0;
     int shortWordQuickshotLevel = 0;
     int finalLetterBurstLevel = 0;
@@ -306,9 +312,13 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     final int[] effectLevels = new int[UpgradeEffect.values().length];
     final int[] laneBarrierCharges = new int[2];
     final int[] laneSlowTicks = new int[2];
-    final UpgradeEffect[] highTalents = new UpgradeEffect[3];
+    final boolean[] completedLaneHighlightSuppressed = new boolean[2];
+    final UpgradeEffect[] highTalents = new UpgradeEffect[MAX_RED_WEAPONS];
+    final UpgradeEffect[] goldTalents = new UpgradeEffect[MAX_GOLD_TALENTS];
     UpgradeCard pendingHighTalent = null;
     boolean returnToTestBackendAfterHighReplace = false;
+    boolean bossRewardChoice = false;
+    boolean overviewSelectionActive = false;
     double laneSwitchFromY = LANE_Y[0];
     double laneSwitchToY = LANE_Y[0];
     int laneSwitchAnimationTicks = 0;
@@ -513,8 +523,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         targets.add(boss);
         typingLane = -1;
         typed = "";
-        showMessage("Boss " + bossLevel + ": large XP reward.",
-                "Boss " + bossLevel + "：大量 XP 奖励。");
+        showMessage("Boss " + bossLevel + ": red weapon reward.",
+                "Boss " + bossLevel + "：红色武器奖励。");
     }
 
     int pressureLevel() {
@@ -786,7 +796,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         double startX = PLAYER_X + worldAmount(28);
         double endX = maxBulletX(bullet);
         double beamLength = Math.max(1.0, endX - startX);
-        double y = LANE_Y[bullet.lane];
+        double y = bullet.y;
         int count = 24;
         for (int i = 0; i < count; i++) {
             double t = (i + random.nextDouble()) / count;
@@ -1147,7 +1157,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (target.kind == TargetKind.BOSS) {
             score += 250 + bossLevel * 60;
             kills += 2;
-            grantBossExperience();
+            openBossRewardMenu();
             return;
         }
 
@@ -1216,19 +1226,17 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         return 30 + (nextUpgradeNumber - EARLY_XP_REQUIREMENTS.length - 1) * 10;
     }
 
-    void grantBossExperience() {
+    void openBossRewardMenu() {
         typingLane = -1;
         typed = "";
-        int reward = bossXpReward();
-        int pendingBefore = pendingUpgradeChoices;
-        addExperience(reward, false);
-        if (pendingUpgradeChoices > pendingBefore) {
-            showMessage("Boss cleared: +" + reward + " XP. Upgrade charged.",
-                    "Boss 击破：+" + reward + " XP。升级已就绪。");
-        } else {
-            showMessage("Boss cleared: +" + reward + " XP.",
-                    "Boss 击破：+" + reward + " XP。");
-        }
+        buildBossRewardChoices();
+        selectedUpgradeIndex = 0;
+        selectedOverviewCardIndex = 0;
+        bossRewardChoice = true;
+        overviewSelectionActive = false;
+        choiceMode = ChoiceMode.UPGRADE;
+        showMessage("Boss cleared: choose a weapon or gold talent.",
+                "Boss 击破：选择红色武器或金色天赋。");
     }
 
     int bossXpReward() {
@@ -1241,11 +1249,32 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         buildUpgradeChoices();
         selectedUpgradeIndex = 0;
+        selectedOverviewCardIndex = 0;
+        bossRewardChoice = false;
+        overviewSelectionActive = false;
         choiceMode = ChoiceMode.UPGRADE;
         typingLane = -1;
         typed = "";
         showMessage("Choose an upgrade. Left/Right and Enter, or 1/2/3.",
                 "选择升级。左右键 + Enter，或按 1/2/3。");
+    }
+
+    void openUpgradeOverview() {
+        if (choiceMode != ChoiceMode.NONE || gameOver) {
+            return;
+        }
+        clearUpgradeChoices();
+        selectedUpgradeIndex = 0;
+        selectedOverviewCardIndex = 0;
+        bossRewardChoice = false;
+        List<UpgradeInventoryCard> cards = currentUpgradeCards();
+        clampOverviewSelection(cards);
+        overviewSelectionActive = cards.size() > 0;
+        choiceMode = ChoiceMode.OVERVIEW;
+        typingLane = -1;
+        typed = "";
+        showMessage("Upgrade overview opened. Space/Esc closes.",
+                "升级总览已打开。Space/Esc 关闭。");
     }
 
     void buildUpgradeChoices() {
@@ -1256,21 +1285,36 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     UpgradeRarity[] rollUpgradeSlots() {
+        if (blueUpgradeCount >= MAX_BLUE_UPGRADES) {
+            return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.COMMON, UpgradeRarity.COMMON};
+        }
         int roll = random.nextInt(100);
         if (upgradeLevel > 0 && upgradeLevel % 5 == 0 && roll < 35) {
-            return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.UNCOMMON, UpgradeRarity.HIGH};
+            return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.UNCOMMON, UpgradeRarity.UNCOMMON};
         }
         if (roll < 12) {
             return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.UNCOMMON, UpgradeRarity.UNCOMMON};
         }
         if (roll < 19) {
-            return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.UNCOMMON, UpgradeRarity.HIGH};
+            return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.COMMON, UpgradeRarity.UNCOMMON};
         }
         return new UpgradeRarity[] {UpgradeRarity.COMMON, UpgradeRarity.COMMON, UpgradeRarity.UNCOMMON};
     }
 
+    void buildBossRewardChoices() {
+        upgradeChoices[0] = randomCardFor(UpgradeRarity.RED, 0);
+        upgradeChoices[1] = randomCardFor(UpgradeRarity.HIGH, 1);
+        upgradeChoices[2] = randomCardFor(UpgradeRarity.HIGH, 2);
+    }
+
     UpgradeCard randomCardFor(UpgradeRarity rarity, int slotIndex) {
         UpgradeEffect[] pool = poolFor(rarity);
+        if (pool.length == 0) {
+            if (rarity == UpgradeRarity.HIGH) {
+                return reservedGoldTalentCard(slotIndex);
+            }
+            return null;
+        }
         for (int tries = 0; tries < 12; tries++) {
             UpgradeEffect effect = pool[random.nextInt(pool.length)];
             if (canOfferEffect(effect, rarity)) {
@@ -1283,19 +1327,31 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             }
         }
         if (rarity == UpgradeRarity.HIGH) {
-            return randomCardFor(UpgradeRarity.UNCOMMON, slotIndex);
+            return reservedGoldTalentCard(slotIndex);
+        }
+        if (rarity == UpgradeRarity.RED) {
+            return createCard(pool[slotIndex % pool.length], rarity);
         }
         return createCard(pool[slotIndex % pool.length], rarity);
     }
 
     boolean canOfferEffect(UpgradeEffect effect, UpgradeRarity rarity) {
+        if (effect == UpgradeEffect.GOLD_TALENT_PLACEHOLDER) {
+            return false;
+        }
         if (choiceAlreadyHas(effect)) {
             return false;
         }
         if (isEffectAtCap(effect)) {
             return false;
         }
-        return rarity != UpgradeRarity.HIGH || !hasHighTalent(effect);
+        if (rarity == UpgradeRarity.UNCOMMON && blueUpgradeCount >= MAX_BLUE_UPGRADES) {
+            return false;
+        }
+        if (rarity == UpgradeRarity.HIGH && goldTalentCount() >= MAX_GOLD_TALENTS) {
+            return false;
+        }
+        return rarity != UpgradeRarity.RED || !hasHighTalent(effect);
     }
 
     boolean isEffectAtCap(UpgradeEffect effect) {
@@ -1319,13 +1375,16 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     UpgradeEffect[] gameplayPoolFor(UpgradeRarity rarity) {
-        if (rarity == UpgradeRarity.HIGH) {
+        if (rarity == UpgradeRarity.RED) {
             return new UpgradeEffect[] {
                     UpgradeEffect.RHYTHM_CANNON,
                     UpgradeEffect.FROST_FIELD,
                     UpgradeEffect.DRY_ICE_BULLET,
                     UpgradeEffect.HOMING_SHOTGUN
             };
+        }
+        if (rarity == UpgradeRarity.HIGH) {
+            return new UpgradeEffect[] {};
         }
         if (rarity == UpgradeRarity.UNCOMMON) {
             if (ENABLE_GROUP_TWO_TO_FIVE_UPGRADES) {
@@ -1398,6 +1457,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         };
     }
 
+    UpgradeCard reservedGoldTalentCard(int slotIndex) {
+        return createCard(UpgradeEffect.GOLD_TALENT_PLACEHOLDER, UpgradeRarity.HIGH);
+    }
+
     UpgradeEffect[] sudoToolEffects() {
         return new UpgradeEffect[] {
                 UpgradeEffect.TEST_INVINCIBLE,
@@ -1415,9 +1478,49 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     boolean isHighTalentEffect(UpgradeEffect effect) {
+        return isWeaponEffect(effect);
+    }
+
+    boolean isWeaponEffect(UpgradeEffect effect) {
+        return effect == UpgradeEffect.RHYTHM_CANNON
+                || effect == UpgradeEffect.FROST_FIELD
+                || effect == UpgradeEffect.DRY_ICE_BULLET
+                || effect == UpgradeEffect.HOMING_SHOTGUN;
+    }
+
+    boolean isGoldTalentEffect(UpgradeEffect effect) {
         return rarityForEffect(effect) == UpgradeRarity.HIGH
+                && effect != UpgradeEffect.GOLD_TALENT_PLACEHOLDER
                 && effect != UpgradeEffect.TEST_INVINCIBLE
                 && effect != UpgradeEffect.TEST_BIG_XP;
+    }
+
+    int goldTalentCount() {
+        int count = 0;
+        for (UpgradeEffect talent : goldTalents) {
+            if (talent != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    int firstEmptyGoldTalentSlot() {
+        for (int i = 0; i < goldTalents.length; i++) {
+            if (goldTalents[i] == null) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    boolean hasGoldTalent(UpgradeEffect effect) {
+        for (UpgradeEffect talent : goldTalents) {
+            if (talent == effect) {
+                return true;
+            }
+        }
+        return false;
     }
 
     boolean isGroupTwoToFiveEffect(UpgradeEffect effect) {
@@ -1484,9 +1587,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         if (effect == UpgradeEffect.TRIGGER_TUNING) {
             return new UpgradeCard("Trigger Tuning",
-                    "Single-shot: +1 bullet per level, +20% total damage split across pellets.",
+                    "+1 shot/beam per level; +20% total damage split across the volley.",
                     "扳机调校",
-                    "单发：每级 +1 弹，总伤害 +20% 后平分到弹丸。",
+                    "每级 +1 发/光束；总伤害 +20% 后平分到齐射。",
                     rarity, effect);
         }
         if (effect == UpgradeEffect.COMBO_TUNING) {
@@ -1607,23 +1710,30 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         if (effect == UpgradeEffect.FROST_FIELD) {
             return new UpgradeCard("Laser Gun",
-                    "High talent: typed words fire an instant red beam; each pierced hit loses 20% damage",
+                    "Weapon: typed words fire an instant red beam; each pierced hit loses 20% damage",
                     "激光枪",
-                    "高稀有天赋：完成词瞬间发射红色光束；每次穿透衰减 20% 伤害",
+                    "红色武器：完成词瞬间发射红色光束；每次穿透衰减 20% 伤害",
                     rarity, effect);
         }
         if (effect == UpgradeEffect.DRY_ICE_BULLET) {
             return new UpgradeCard("Dry-Ice Bullet",
-                    "High talent: typed words fire an icy pentagon round; splash slows nearby enemies and every third hit freezes the same target",
+                    "Weapon: typed words fire an icy pentagon round; splash slows nearby enemies and every third hit freezes the same target",
                     "干冰子弹",
-                    "高稀有天赋：完成词发射冰质五边形弹；范围减速，连续三次命中同一目标会冻结",
+                    "红色武器：完成词发射冰质五边形弹；范围减速，连续三次命中同一目标会冻结",
                     rarity, effect);
         }
         if (effect == UpgradeEffect.HOMING_SHOTGUN) {
             return new UpgradeCard("Homing Shotgun",
-                    "High talent: typed words fire a wide fan of pellets that arm, then chase the nearest enemy",
+                    "Weapon: typed words fire a wide fan of pellets that arm, then chase the nearest enemy",
                     "追踪散弹",
-                    "高稀有天赋：完成词射出大量扇形弹丸，飞出一段距离后追踪最近敌人",
+                    "红色武器：完成词射出大量扇形弹丸，飞出一段距离后追踪最近敌人",
+                    rarity, effect);
+        }
+        if (effect == UpgradeEffect.GOLD_TALENT_PLACEHOLDER) {
+            return new UpgradeCard("Gold Talent Slot",
+                    "Reserved gold-talent interface; concrete talents will be added later",
+                    "金色天赋接口",
+                    "金色天赋接口已预留；稍后会加入具体天赋",
                     rarity, effect);
         }
         if (effect == UpgradeEffect.TEST_INVINCIBLE) {
@@ -1634,8 +1744,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             return new UpgradeCard("Test XP Cache", "sudo only: +" + TEST_BIG_XP_AMOUNT + " XP",
                     "测试经验包", "sudo 专用：+" + TEST_BIG_XP_AMOUNT + " XP", rarity, effect);
         }
-        return new UpgradeCard("Autocannon", "High talent: fires without typing; typed words empower it briefly",
-                "自动炮", "高稀有天赋：不打字也会连续攻击；完成词会短暂强化子弹", rarity, effect);
+        return new UpgradeCard("Autocannon", "Weapon: fires without typing; typed words empower it briefly",
+                "自动炮", "红色武器：不打字也会连续攻击；完成词会短暂强化子弹", rarity, effect);
     }
 
     void applyUpgradeCard(UpgradeCard card) {
@@ -1646,8 +1756,17 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (card == null) {
             return;
         }
+        if (card.effect == UpgradeEffect.GOLD_TALENT_PLACEHOLDER) {
+            showMessage("Gold talents are reserved for the next design pass.",
+                    "金色天赋接口已预留，稍后加入具体天赋。");
+            return;
+        }
         if (isHighTalentEffect(card.effect)) {
             applyHighTalentCard(card, spendPendingChoice, closeMenu);
+            return;
+        }
+        if (isGoldTalentEffect(card.effect)) {
+            applyGoldTalentCard(card, spendPendingChoice, closeMenu);
             return;
         }
         if (card.effect == UpgradeEffect.FIELD_PATCH) {
@@ -1697,10 +1816,26 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         finishUpgradeCard(card, spendPendingChoice, closeMenu);
     }
 
+    void applyGoldTalentCard(UpgradeCard card, boolean spendPendingChoice, boolean closeMenu) {
+        if (hasGoldTalent(card.effect)) {
+            showMessage("Gold talent already installed: " + card.title + ".",
+                    "金色天赋已拥有：" + cardTitle(card) + "。");
+            return;
+        }
+        int emptySlot = firstEmptyGoldTalentSlot();
+        if (emptySlot < 0) {
+            showMessage("Gold talent slots are full.",
+                    "金色天赋槽已满。");
+            return;
+        }
+        goldTalents[emptySlot] = card.effect;
+        finishUpgradeCard(card, spendPendingChoice, closeMenu);
+    }
+
     void applyHighTalentCard(UpgradeCard card, boolean spendPendingChoice, boolean closeMenu) {
         if (hasHighTalent(card.effect)) {
-            showMessage("High talent already installed: " + card.title + ".",
-                    "高稀有天赋已拥有：" + cardTitle(card) + "。");
+            showMessage("Weapon already installed: " + card.title + ".",
+                    "红色武器已拥有：" + cardTitle(card) + "。");
             return;
         }
         int emptySlot = firstEmptyHighTalentSlot();
@@ -1719,17 +1854,31 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         choiceMode = ChoiceMode.HIGH_REPLACE;
         typingLane = -1;
         typed = "";
-        showMessage("High talents are full. Press 1/2/3 to replace, Esc to abandon the new talent.",
-                "高稀有天赋已满。按 1/2/3 替换，Esc 放弃新天赋。");
+        showMessage("Weapon slot is full. Press 1 to replace, Esc to abandon the new weapon.",
+                "红色武器槽已满。按 1 替换，Esc 放弃新武器。");
     }
 
     void finishUpgradeCard(UpgradeCard card, boolean spendPendingChoice, boolean closeMenu) {
+        if (spendPendingChoice && card.rarity == UpgradeRarity.UNCOMMON) {
+            blueUpgradeCount = Math.min(MAX_BLUE_UPGRADES, blueUpgradeCount + 1);
+        }
         if (spendPendingChoice) {
             pendingUpgradeChoices = Math.max(0, pendingUpgradeChoices - 1);
         }
         if (closeMenu) {
+            if (spendPendingChoice && pendingUpgradeChoices > 0 && !bossRewardChoice) {
+                buildUpgradeChoices();
+                selectedUpgradeIndex = 0;
+                selectedOverviewCardIndex = 0;
+                overviewSelectionActive = false;
+                showMessage("Upgrade chosen: " + card.title + ". " + pendingUpgradeChoices + " queued.",
+                        "已选择升级：" + cardTitle(card) + "。剩余 " + pendingUpgradeChoices + " 次。");
+                return;
+            }
             clearUpgradeChoices();
             choiceMode = ChoiceMode.NONE;
+            bossRewardChoice = false;
+            overviewSelectionActive = false;
         }
         showMessage("Upgrade chosen: " + card.title + ".",
                 "已选择升级：" + cardTitle(card) + "。");
@@ -1741,6 +1890,170 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+    List<UpgradeInventoryCard> currentUpgradeCards() {
+        List<UpgradeInventoryCard> cards = new ArrayList<UpgradeInventoryCard>();
+        for (int i = 0; i < highTalents.length; i++) {
+            if (highTalents[i] != null) {
+                cards.add(new UpgradeInventoryCard(highTalents[i], UpgradeRarity.RED, 1, i));
+            }
+        }
+        for (int i = 0; i < goldTalents.length; i++) {
+            if (goldTalents[i] != null) {
+                cards.add(new UpgradeInventoryCard(goldTalents[i], UpgradeRarity.HIGH, 1, i));
+            }
+        }
+        addOwnedUpgradeCard(cards, UpgradeEffect.REINFORCED_CORE,
+                maxHpUpgradeBonus / Math.max(1, MAX_HP_CARD_BONUS));
+        addOwnedUpgradeCard(cards, UpgradeEffect.CALIBRATED_DAMAGE, damageBonusPercent / 12);
+        addOwnedUpgradeCard(cards, UpgradeEffect.TRIGGER_TUNING, triggerTuningLevel());
+        addOwnedUpgradeCard(cards, UpgradeEffect.COMBO_TUNING, perfectBonus);
+        addOwnedUpgradeCard(cards, UpgradeEffect.LONG_WORD_REWARD, longWordRewardLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.SHORT_WORD_QUICKSHOT, shortWordQuickshotLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.FINAL_LETTER_BURST, finalLetterBurstLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.VOWEL_CONVERGENCE, vowelConvergenceLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.HARD_CONSONANT_BREAK, hardConsonantBreakLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.PHASE_SWITCH, phaseSwitchLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.BOSS_BREAKER, bossBreakerLevel);
+        addOwnedUpgradeCard(cards, UpgradeEffect.CROSSFEED, crossfeedLevel);
+        for (UpgradeEffect effect : UpgradeEffect.values()) {
+            if (effectLevel(effect) > 0) {
+                addOwnedUpgradeCard(cards, effect, effectLevel(effect));
+            }
+        }
+        return cards;
+    }
+
+    void addOwnedUpgradeCard(List<UpgradeInventoryCard> cards, UpgradeEffect effect, int level) {
+        if (level <= 0 || effect == UpgradeEffect.TEST_INVINCIBLE || effect == UpgradeEffect.TEST_BIG_XP
+                || effect == UpgradeEffect.GOLD_TALENT_PLACEHOLDER || isWeaponEffect(effect)) {
+            return;
+        }
+        cards.add(new UpgradeInventoryCard(effect, rarityForEffect(effect), level, -1));
+    }
+
+    int sellExperienceValue() {
+        return Math.max(1, (xpToNext + 2) / 3);
+    }
+
+    int sellExperienceValue(UpgradeInventoryCard card) {
+        int baseValue = sellExperienceValue();
+        if (card != null && card.rarity == UpgradeRarity.HIGH) {
+            return baseValue * 2;
+        }
+        return baseValue;
+    }
+
+    int selectedSellExperienceValue(List<UpgradeInventoryCard> cards) {
+        if (cards.size() == 0) {
+            return sellExperienceValue();
+        }
+        clampOverviewSelection(cards);
+        return sellExperienceValue(cards.get(selectedOverviewCardIndex));
+    }
+
+    void clampOverviewSelection(List<UpgradeInventoryCard> cards) {
+        if (cards.size() == 0) {
+            selectedOverviewCardIndex = 0;
+            overviewSelectionActive = false;
+            return;
+        }
+        selectedOverviewCardIndex = Math.max(0, Math.min(selectedOverviewCardIndex, cards.size() - 1));
+    }
+
+    void sellSelectedOverviewUpgrade() {
+        if ((choiceMode != ChoiceMode.UPGRADE && choiceMode != ChoiceMode.OVERVIEW) || bossRewardChoice) {
+            return;
+        }
+        List<UpgradeInventoryCard> cards = currentUpgradeCards();
+        clampOverviewSelection(cards);
+        if (cards.size() == 0) {
+            return;
+        }
+        UpgradeInventoryCard card = cards.get(selectedOverviewCardIndex);
+        if (!removeUpgradeCard(card)) {
+            return;
+        }
+        int xpValue = sellExperienceValue(card);
+        addExperience(xpValue, false);
+        List<UpgradeInventoryCard> after = currentUpgradeCards();
+        clampOverviewSelection(after);
+        showMessage("Sold " + effectTitleEn(card.effect) + " for +" + xpValue + " XP.",
+                "已出售 " + effectTitleZh(card.effect) + "，获得 +" + xpValue + " XP。");
+    }
+
+    boolean removeUpgradeCard(UpgradeInventoryCard card) {
+        if (card.rarity == UpgradeRarity.RED && card.slotIndex >= 0) {
+            highTalents[card.slotIndex] = null;
+            return true;
+        }
+        if (card.rarity == UpgradeRarity.HIGH && card.slotIndex >= 0) {
+            goldTalents[card.slotIndex] = null;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.REINFORCED_CORE && maxHpUpgradeBonus > 0) {
+            int reduction = Math.min(MAX_HP_CARD_BONUS, maxHpUpgradeBonus);
+            maxHpUpgradeBonus -= reduction;
+            maxHp = Math.max(PLAYER_BASE_HP, maxHp - reduction);
+            hp = Math.min(hp, maxHp);
+            return true;
+        }
+        if (card.effect == UpgradeEffect.CALIBRATED_DAMAGE && damageBonusPercent > 0) {
+            damageBonusPercent = Math.max(0, damageBonusPercent - 12);
+            return true;
+        }
+        if (card.effect == UpgradeEffect.TRIGGER_TUNING && fireRateBonusPercent > 0) {
+            fireRateBonusPercent = Math.max(0, fireRateBonusPercent - TRIGGER_TUNING_STEP_PERCENT);
+            return true;
+        }
+        if (card.effect == UpgradeEffect.COMBO_TUNING && perfectBonus > 0) {
+            perfectBonus--;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.LONG_WORD_REWARD && longWordRewardLevel > 0) {
+            longWordRewardLevel--;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.SHORT_WORD_QUICKSHOT && shortWordQuickshotLevel > 0) {
+            shortWordQuickshotLevel--;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.FINAL_LETTER_BURST && finalLetterBurstLevel > 0) {
+            finalLetterBurstLevel--;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.VOWEL_CONVERGENCE && vowelConvergenceLevel > 0) {
+            vowelConvergenceLevel--;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.HARD_CONSONANT_BREAK && hardConsonantBreakLevel > 0) {
+            hardConsonantBreakLevel--;
+            return true;
+        }
+        if (card.effect == UpgradeEffect.PHASE_SWITCH && phaseSwitchLevel > 0) {
+            phaseSwitchLevel--;
+            blueUpgradeCount = Math.max(0, blueUpgradeCount - 1);
+            return true;
+        }
+        if (card.effect == UpgradeEffect.BOSS_BREAKER && bossBreakerLevel > 0) {
+            bossBreakerLevel--;
+            blueUpgradeCount = Math.max(0, blueUpgradeCount - 1);
+            return true;
+        }
+        if (card.effect == UpgradeEffect.CROSSFEED && crossfeedLevel > 0) {
+            crossfeedLevel--;
+            blueUpgradeCount = Math.max(0, blueUpgradeCount - 1);
+            return true;
+        }
+        if (effectLevel(card.effect) > 0) {
+            effectLevels[card.effect.ordinal()]--;
+            if (card.rarity == UpgradeRarity.UNCOMMON) {
+                blueUpgradeCount = Math.max(0, blueUpgradeCount - 1);
+            }
+            return true;
+        }
+        return false;
+    }
+
     void choose(int key) {
         if (choiceMode == ChoiceMode.TEST_BACKEND) {
             chooseTestBackend(key);
@@ -1750,25 +2063,121 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             chooseHighReplacement(key);
             return;
         }
+        if (choiceMode == ChoiceMode.OVERVIEW) {
+            chooseOverviewOnly(key);
+            return;
+        }
         if (choiceMode != ChoiceMode.UPGRADE) {
+            return;
+        }
+        if (overviewSelectionActive) {
+            chooseOverviewCard(key);
             return;
         }
         if (key == KeyEvent.VK_LEFT) {
             selectedUpgradeIndex = (selectedUpgradeIndex + 2) % 3;
         } else if (key == KeyEvent.VK_RIGHT) {
             selectedUpgradeIndex = (selectedUpgradeIndex + 1) % 3;
+        } else if (key == KeyEvent.VK_DOWN && !bossRewardChoice) {
+            List<UpgradeInventoryCard> cards = currentUpgradeCards();
+            if (cards.size() > 0) {
+                clampOverviewSelection(cards);
+                overviewSelectionActive = true;
+            }
+        } else if ((key == KeyEvent.VK_ESCAPE || key == KeyEvent.VK_BACK_SPACE) && !bossRewardChoice) {
+            abandonUpgradeChoice();
         } else if (key == KeyEvent.VK_1) {
             selectedUpgradeIndex = 0;
-            applyUpgradeCard(upgradeChoices[selectedUpgradeIndex]);
+            applySelectedUpgradeCard();
         } else if (key == KeyEvent.VK_2) {
             selectedUpgradeIndex = 1;
-            applyUpgradeCard(upgradeChoices[selectedUpgradeIndex]);
+            applySelectedUpgradeCard();
         } else if (key == KeyEvent.VK_3) {
             selectedUpgradeIndex = 2;
-            applyUpgradeCard(upgradeChoices[selectedUpgradeIndex]);
+            applySelectedUpgradeCard();
         } else if (key == KeyEvent.VK_ENTER) {
-            applyUpgradeCard(upgradeChoices[selectedUpgradeIndex]);
+            applySelectedUpgradeCard();
         }
+    }
+
+    void chooseOverviewOnly(int key) {
+        List<UpgradeInventoryCard> cards = currentUpgradeCards();
+        clampOverviewSelection(cards);
+        if (key == KeyEvent.VK_ESCAPE || key == KeyEvent.VK_BACK_SPACE || key == KeyEvent.VK_SPACE) {
+            closeUpgradeOverview();
+        } else if (key == KeyEvent.VK_LEFT && cards.size() > 0) {
+            overviewSelectionActive = true;
+            selectedOverviewCardIndex = (selectedOverviewCardIndex + cards.size() - 1) % cards.size();
+        } else if (key == KeyEvent.VK_RIGHT && cards.size() > 0) {
+            overviewSelectionActive = true;
+            selectedOverviewCardIndex = (selectedOverviewCardIndex + 1) % cards.size();
+        } else if ((key == KeyEvent.VK_DOWN || key == KeyEvent.VK_UP) && cards.size() > 0) {
+            overviewSelectionActive = true;
+        } else if (key == KeyEvent.VK_ENTER || key == KeyEvent.VK_DELETE || key == KeyEvent.VK_S) {
+            overviewSelectionActive = cards.size() > 0;
+            sellSelectedOverviewUpgrade();
+        }
+    }
+
+    void chooseOverviewCard(int key) {
+        List<UpgradeInventoryCard> cards = currentUpgradeCards();
+        clampOverviewSelection(cards);
+        if (choiceMode == ChoiceMode.OVERVIEW
+                && (key == KeyEvent.VK_ESCAPE || key == KeyEvent.VK_BACK_SPACE || key == KeyEvent.VK_SPACE)) {
+            closeUpgradeOverview();
+        } else if (key == KeyEvent.VK_UP) {
+            overviewSelectionActive = false;
+        } else if (key == KeyEvent.VK_LEFT && cards.size() > 0) {
+            selectedOverviewCardIndex = (selectedOverviewCardIndex + cards.size() - 1) % cards.size();
+        } else if (key == KeyEvent.VK_RIGHT && cards.size() > 0) {
+            selectedOverviewCardIndex = (selectedOverviewCardIndex + 1) % cards.size();
+        } else if (key == KeyEvent.VK_ENTER || key == KeyEvent.VK_DELETE || key == KeyEvent.VK_S) {
+            sellSelectedOverviewUpgrade();
+        } else if ((key == KeyEvent.VK_ESCAPE || key == KeyEvent.VK_BACK_SPACE) && !bossRewardChoice) {
+            abandonUpgradeChoice();
+        } else if (choiceMode == ChoiceMode.UPGRADE && key == KeyEvent.VK_1) {
+            overviewSelectionActive = false;
+            selectedUpgradeIndex = 0;
+            applySelectedUpgradeCard();
+        } else if (choiceMode == ChoiceMode.UPGRADE && key == KeyEvent.VK_2) {
+            overviewSelectionActive = false;
+            selectedUpgradeIndex = 1;
+            applySelectedUpgradeCard();
+        } else if (choiceMode == ChoiceMode.UPGRADE && key == KeyEvent.VK_3) {
+            overviewSelectionActive = false;
+            selectedUpgradeIndex = 2;
+            applySelectedUpgradeCard();
+        }
+    }
+
+    void applySelectedUpgradeCard() {
+        UpgradeCard card = upgradeChoices[selectedUpgradeIndex];
+        applyUpgradeCard(card, !bossRewardChoice, true);
+    }
+
+    void abandonUpgradeChoice() {
+        if (choiceMode != ChoiceMode.UPGRADE || pendingUpgradeChoices <= 0) {
+            return;
+        }
+        pendingUpgradeChoices = Math.max(0, pendingUpgradeChoices - 1);
+        clearUpgradeChoices();
+        choiceMode = ChoiceMode.NONE;
+        bossRewardChoice = false;
+        overviewSelectionActive = false;
+        showMessage("Upgrade abandoned.",
+                "已放弃本次升级。");
+    }
+
+    void closeUpgradeOverview() {
+        if (choiceMode != ChoiceMode.OVERVIEW) {
+            return;
+        }
+        clearUpgradeChoices();
+        choiceMode = ChoiceMode.NONE;
+        bossRewardChoice = false;
+        overviewSelectionActive = false;
+        showMessage("Upgrade overview closed.",
+                "升级总览已关闭。");
     }
 
     void chooseHighReplacement(int key) {
@@ -1777,8 +2186,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             pendingHighTalent = null;
             choiceMode = returnToTestBackendAfterHighReplace ? ChoiceMode.TEST_BACKEND : ChoiceMode.NONE;
             returnToTestBackendAfterHighReplace = false;
-            showMessage("New high talent abandoned.",
-                    title.length() == 0 ? "已放弃新高稀有天赋。" : "已放弃新高稀有天赋：" + title + "。");
+            bossRewardChoice = false;
+            showMessage("New weapon abandoned.",
+                    title.length() == 0 ? "已放弃新红色武器。" : "已放弃新红色武器：" + title + "。");
             return;
         }
         int slot = -1;
@@ -1789,7 +2199,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         } else if (key == KeyEvent.VK_3) {
             slot = 2;
         }
-        if (slot < 0 || pendingHighTalent == null) {
+        if (slot < 0 || slot >= highTalents.length || pendingHighTalent == null) {
             return;
         }
         UpgradeEffect replaced = highTalents[slot];
@@ -1798,9 +2208,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         pendingHighTalent = null;
         choiceMode = returnToTestBackendAfterHighReplace ? ChoiceMode.TEST_BACKEND : ChoiceMode.NONE;
         returnToTestBackendAfterHighReplace = false;
-        showMessage("High talent replaced: " + effectTitleEn(installed.effect)
+        bossRewardChoice = false;
+        showMessage("Weapon replaced: " + effectTitleEn(installed.effect)
                         + " over " + effectTitleEn(replaced) + ".",
-                "高稀有替换：" + effectTitleZh(installed.effect)
+                "红色武器替换：" + effectTitleZh(installed.effect)
                         + " 替换 " + effectTitleZh(replaced) + "。");
     }
 
@@ -1816,6 +2227,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         paused = false;
         choiceMode = ChoiceMode.TEST_BACKEND;
+        bossRewardChoice = false;
+        overviewSelectionActive = false;
         selectedTestUpgradeIndex = 0;
         typingLane = -1;
         typed = "";
@@ -1856,11 +2269,14 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         UpgradeEffect[] common = gameplayPoolFor(UpgradeRarity.COMMON);
         UpgradeEffect[] uncommon = gameplayPoolFor(UpgradeRarity.UNCOMMON);
         UpgradeEffect[] high = gameplayPoolFor(UpgradeRarity.HIGH);
-        UpgradeEffect[] effects = new UpgradeEffect[tools.length + common.length + uncommon.length + high.length];
+        UpgradeEffect[] red = gameplayPoolFor(UpgradeRarity.RED);
+        UpgradeEffect[] effects = new UpgradeEffect[
+                tools.length + common.length + uncommon.length + high.length + red.length];
         int index = copyEffects(tools, effects, 0);
         index = copyEffects(common, effects, index);
         index = copyEffects(uncommon, effects, index);
-        copyEffects(high, effects, index);
+        index = copyEffects(high, effects, index);
+        copyEffects(red, effects, index);
         return effects;
     }
 
@@ -1875,9 +2291,11 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (effect == UpgradeEffect.TEST_INVINCIBLE || effect == UpgradeEffect.TEST_BIG_XP) {
             return UpgradeRarity.HIGH;
         }
-        if (effect == UpgradeEffect.RHYTHM_CANNON || effect == UpgradeEffect.FROST_FIELD
-                || effect == UpgradeEffect.DRY_ICE_BULLET || effect == UpgradeEffect.HOMING_SHOTGUN) {
+        if (effect == UpgradeEffect.GOLD_TALENT_PLACEHOLDER) {
             return UpgradeRarity.HIGH;
+        }
+        if (isWeaponEffect(effect)) {
+            return UpgradeRarity.RED;
         }
         if (effect == UpgradeEffect.PHASE_SWITCH || effect == UpgradeEffect.BOSS_BREAKER
                 || effect == UpgradeEffect.CROSSFEED
@@ -2017,6 +2435,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             queueOrCompleteLaneWord(previousLane, completedLane, completedWord);
             completePulseLane = completedLane;
             completePulseTicks = WORD_COMPLETE_PULSE_TICKS;
+            completedLaneHighlightSuppressed[completedLane] = true;
             refreshLaneWord(completedLane);
             resetTypingProgress();
         }
@@ -2041,6 +2460,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     void startCurrentWord(String candidate, int laneIndex) {
+        completedLaneHighlightSuppressed[laneIndex] = false;
         currentWordUsedBackspace = false;
         currentWordStartedAfterError = recentErrorTicks > 0 || nextWordStartsAfterError;
         currentWordMatchesErrorReset = recentErrorTicks > 0
@@ -2173,7 +2593,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             int pierceDamage = scaledDamage(4 + combo / 10
                     + groupOneDamageBonus(completedWord, target)
                     + groupTwoToFiveDamageBonus(completedWord, target), target);
-            fireBullet(attackLane, pierceDamage, 5, BulletKind.PIERCE);
+            fireLaserVolley(attackLane, pierceDamage);
         } else if (primaryKind == BulletKind.HOMING_SHOT) {
             fireHomingShotgun(attackLane, damage);
         } else {
@@ -2536,6 +2956,19 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+    void fireLaserVolley(int attackLane, int baseTotalDamage) {
+        int beams = singleShotPelletCount();
+        int totalDamage = triggerTunedTotalDamage(baseTotalDamage);
+        int baseBeamDamage = totalDamage / beams;
+        int remainder = totalDamage % beams;
+        double middle = (beams - 1) / 2.0;
+        for (int i = 0; i < beams; i++) {
+            int beamDamage = baseBeamDamage + (i < remainder ? 1 : 0);
+            double visualOffsetY = (i - middle) * sy(6);
+            fireLaserBeam(attackLane, beamDamage, 5, visualOffsetY);
+        }
+    }
+
     void fireHomingShotgun(int attackLane, int baseTotalDamage) {
         int pellets = HOMING_SHOTGUN_BASE_PELLETS + triggerTuningLevel() * 2;
         int tunedDamage = triggerTunedTotalDamage(baseTotalDamage + Math.max(4, baseTotalDamage / 2));
@@ -2598,16 +3031,25 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
 
     void fireBullet(int attackLane, int damage, int pierceLeft, BulletKind kind,
             double startOffset, boolean particleTrail) {
+        if (kind == BulletKind.PIERCE) {
+            fireLaserBeam(attackLane, damage, pierceLeft, 0.0);
+            return;
+        }
         boolean resolvedParticleTrail = particleTrail && kind != BulletKind.BASIC && kind != BulletKind.PIERCE;
         Bullet bullet = new Bullet(PLAYER_X + worldAmount(28 + startOffset), attackLane, damage, pierceLeft, kind,
                 resolvedParticleTrail);
-        if (kind == BulletKind.PIERCE) {
-            bullet.x = maxBulletX(bullet);
-            bullet.y = LANE_Y[attackLane];
-            resolveLaserBeam(bullet);
-            spawnLaserBeamParticles(bullet);
-            bullet.beamResolved = true;
-        }
+        bullets.add(bullet);
+    }
+
+    void fireLaserBeam(int attackLane, int damage, int pierceLeft, double visualOffsetY) {
+        Bullet bullet = new Bullet(PLAYER_X + worldAmount(28), attackLane, damage, pierceLeft, BulletKind.PIERCE,
+                false);
+        bullet.x = maxBulletX(bullet);
+        resolveLaserBeam(bullet);
+        bullet.y = LANE_Y[attackLane] + visualOffsetY;
+        bullet.previousY = bullet.y;
+        spawnLaserBeamParticles(bullet);
+        bullet.beamResolved = true;
         bullets.add(bullet);
     }
 
@@ -2801,6 +3243,15 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             repaint();
             return;
         }
+        if (!gameOver && key == KeyEvent.VK_SPACE) {
+            if (pendingUpgradeChoices > 0) {
+                openUpgradeMenu();
+            } else {
+                openUpgradeOverview();
+            }
+            repaint();
+            return;
+        }
         if (paused) {
             repaint();
             return;
@@ -2810,10 +3261,6 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             typed = typed.substring(0, typed.length() - 1);
             if (typed.length() == 0) {
                 typingLane = -1;
-            }
-        } else if (key == KeyEvent.VK_SPACE) {
-            if (pendingUpgradeChoices > 0) {
-                openUpgradeMenu();
             }
         } else {
             char letter = keyboardLetterForKeyCode(key);
@@ -2910,6 +3357,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         upgradeLevel = 0;
         pendingUpgradeChoices = 0;
         selectedUpgradeIndex = 0;
+        selectedOverviewCardIndex = 0;
+        overviewSelectionActive = false;
+        blueUpgradeCount = 0;
         damageBonusPercent = 0;
         fireRateBonusPercent = 0;
         maxHpUpgradeBonus = 0;
@@ -2932,12 +3382,17 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         for (int i = 0; i < laneBarrierCharges.length; i++) {
             laneBarrierCharges[i] = 0;
             laneSlowTicks[i] = 0;
+            completedLaneHighlightSuppressed[i] = false;
         }
         for (int i = 0; i < highTalents.length; i++) {
             highTalents[i] = null;
         }
+        for (int i = 0; i < goldTalents.length; i++) {
+            goldTalents[i] = null;
+        }
         pendingHighTalent = null;
         returnToTestBackendAfterHighReplace = false;
+        bossRewardChoice = false;
         laneSwitchFromY = LANE_Y[0];
         laneSwitchToY = LANE_Y[0];
         laneSwitchAnimationTicks = 0;
@@ -3125,11 +3580,28 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         drawLaneWordCard(g, 1, x, y + height + sy(18), width, height);
     }
 
+    boolean laneHasInputPulse(int laneIndex) {
+        return inputPulseTicks > 0 && typingLane == laneIndex && typed.length() > 0;
+    }
+
+    boolean laneCompletionPulseActive(int laneIndex) {
+        return completePulseTicks > 0 && completePulseLane == laneIndex;
+    }
+
+    boolean laneWordHighlightSuppressed(int laneIndex) {
+        return completedLaneHighlightSuppressed[laneIndex] && !laneCompletionPulseActive(laneIndex);
+    }
+
+    boolean laneWordShowsActiveHighlight(int laneIndex) {
+        return laneIndex == lane && !laneWordHighlightSuppressed(laneIndex);
+    }
+
     void drawLaneWordCard(Graphics2D g, int laneIndex, int x, int y, int width, int height) {
-        boolean active = laneIndex == lane;
+        boolean active = laneWordShowsActiveHighlight(laneIndex);
         boolean typing = typingLane == laneIndex && typed.length() > 0;
+        boolean inputPulse = laneHasInputPulse(laneIndex);
         boolean wrong = wrongFlashTicks > 0 && (wrongFlashLane < 0 || wrongFlashLane == laneIndex);
-        boolean completed = completePulseTicks > 0 && completePulseLane == laneIndex;
+        boolean completed = laneCompletionPulseActive(laneIndex);
         Color edge = active ? COLOR_CARD_ACTIVE : COLOR_CARD_IDLE;
         if (typing) {
             edge = COLOR_TYPED_PREFIX;
@@ -3138,8 +3610,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             edge = COLOR_TARGET_SWITCHER;
         }
         if (active || typing) {
-            int pulse = sx(6) + (int) (pulse(0.18, laneIndex * 17) * sx(8)) + sx(inputPulseTicks);
-            g.setColor(typing ? withAlpha(COLOR_TYPED_PREFIX, 42 + inputPulseTicks * 9) : COLOR_CARD_GLOW);
+            int keyPulse = inputPulse ? inputPulseTicks : 0;
+            int pulse = sx(6) + (int) (pulse(0.18, laneIndex * 17) * sx(8)) + sx(keyPulse);
+            g.setColor(typing ? withAlpha(COLOR_TYPED_PREFIX, 42 + keyPulse * 9) : COLOR_CARD_GLOW);
             g.fillRoundRect(x - pulse, y - pulse, width + pulse * 2, height + pulse * 2, sx(10), sy(10));
         }
         if (completed) {
@@ -3427,7 +3900,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void drawLaserBeam(Graphics2D g, Bullet bullet) {
         double remaining = bullet.maxLifeTicks <= 0 ? 0.0 : bullet.lifeTicks / (double) bullet.maxLifeTicks;
         double fade = smoothstep(remaining);
-        int y = LANE_Y[bullet.lane];
+        int y = (int) Math.round(bullet.y);
         int startX = PLAYER_X + sx(28);
         int endX = LANE_RIGHT_X;
         int auraAlpha = (int) (105 * fade);
@@ -3625,7 +4098,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         drawLanguageBadge(g, WIDTH - 315, HEIGHT - 48);
         g.drawString(ui("Lane: ", "赛道：") + laneDisplayName(lane), 22, HEIGHT - 25);
         g.drawString(ui("Best ", "最高 ") + highScore, 160, HEIGHT - 25);
-        g.drawString(ui("High ", "高稀有 ") + highTalentHudText(), 300, HEIGHT - 25);
+        g.drawString(ui("Weapon ", "武器 ") + highTalentHudText(), 300, HEIGHT - 25);
     }
 
     void drawUpgradePrompt(Graphics2D g, int x, int y) {
@@ -3741,17 +4214,123 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             drawHighReplacementOverlay(g);
             return;
         }
-        g.setColor(COLOR_CHOICE_OVERLAY);
+        g.setColor(withAlpha(Color.BLACK, 210));
         g.fillRect(0, 0, WIDTH, HEIGHT);
-        g.setColor(Color.WHITE);
-        g.setFont(uiFont(FONT_CHOICE_TITLE, FONT_CHOICE_TITLE_ZH));
-        drawCentered(g, ui("Choose Upgrade", "选择升级"), WIDTH / 2, 210);
-        g.setFont(uiFont(FONT_OVERLAY_BODY, FONT_OVERLAY_BODY_ZH));
-        drawCentered(g, ui("Left/Right + Enter, or 1/2/3. Letters stay reserved for typing.",
-                "左右键 + Enter，或 1/2/3。字母键保留给输入。"), WIDTH / 2, 255);
-        for (int i = 0; i < upgradeChoices.length; i++) {
-            drawUpgradeCard(g, upgradeChoices[i], i, WIDTH / 2 - 465 + i * 310, 310);
+        if (choiceMode == ChoiceMode.OVERVIEW) {
+            drawUpgradeOverviewPage(g);
+            return;
         }
+        drawUpgradeChoicePage(g);
+    }
+
+    void drawUpgradeChoicePage(Graphics2D g) {
+        Color accent = bossRewardChoice ? COLOR_RARITY_RED : COLOR_UPGRADE_READY;
+        String title = bossRewardChoice ? ui("Boss Reward", "Boss 奖励") : ui("Choose Upgrade", "选择升级");
+        String subtitle = bossRewardChoice
+                ? ui("Pick one red weapon, or inspect the reserved gold options.",
+                        "选择一个红色武器，或查看金色预留选项。")
+                : ui("Pick one large card. Down moves into your build manager; Esc abandons this choice.",
+                        "选择一张大卡。Down 进入 build 管理区；Esc 放弃本次选择。");
+
+        g.setFont(uiFont(FONT_CHOICE_TITLE, FONT_CHOICE_TITLE_ZH).deriveFont(44f));
+        g.setColor(Color.WHITE);
+        drawCentered(g, title, WIDTH / 2, 128);
+        g.setFont(uiFont(FONT_OVERLAY_BODY, FONT_OVERLAY_BODY_ZH).deriveFont(22f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        drawCentered(g, subtitle, WIDTH / 2, 176);
+
+        int cardWidth = 480;
+        int cardHeight = 390;
+        int cardGap = 34;
+        int railWidth = 650;
+        int railGap = 60;
+        int totalWidth = cardWidth * 3 + cardGap * 2 + railGap + railWidth;
+        int choiceX = (WIDTH - totalWidth) / 2;
+        int cardY = 245;
+        for (int i = 0; i < upgradeChoices.length; i++) {
+            drawUpgradeCard(g, upgradeChoices[i], i, choiceX + i * (cardWidth + cardGap), cardY,
+                    cardWidth, cardHeight);
+        }
+
+        drawChoiceCommandStrip(g, choiceX, cardY + cardHeight + 32, cardWidth * 3 + cardGap * 2, accent);
+        drawUpgradeOverview(g, choiceX + cardWidth * 3 + cardGap * 2 + railGap, cardY, railWidth, 850);
+    }
+
+    void drawChoiceCommandStrip(Graphics2D g, int x, int y, int width, Color accent) {
+        g.setColor(withAlpha(accent, 24));
+        g.fillRoundRect(x, y, width, 92, 10, 10);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, 150));
+        g.drawRoundRect(x, y, width, 92, 10, 10);
+        int pillY = y + 24;
+        int gap = 16;
+        int innerX = x + 18;
+        int innerWidth = width - 36;
+        int pillWidth = (innerWidth - gap * 4) / 5;
+        drawCommandPill(g, innerX + 0 * (pillWidth + gap), pillY, pillWidth,
+                COLOR_RARITY_UNCOMMON, ui("Left/Right", "左右选择"));
+        drawCommandPill(g, innerX + 1 * (pillWidth + gap), pillY, pillWidth,
+                COLOR_XP, ui("Enter Pick", "Enter 选择"));
+        drawCommandPill(g, innerX + 2 * (pillWidth + gap), pillY, pillWidth,
+                COLOR_UPGRADE_READY, ui("1/2/3 Quick", "1/2/3 快选"));
+        drawCommandPill(g, innerX + 3 * (pillWidth + gap), pillY, pillWidth,
+                COLOR_RARITY_HIGH, bossRewardChoice ? ui("Boss Locked", "Boss 锁定")
+                        : ui("Down Build", "Down 管理"));
+        drawCommandPill(g, innerX + 4 * (pillWidth + gap), pillY, pillWidth,
+                COLOR_TARGET_SWITCHER, bossRewardChoice ? ui("No Abandon", "不可放弃")
+                        : ui("Esc Abandon", "Esc 放弃"));
+    }
+
+    void drawUpgradeOverviewPage(Graphics2D g) {
+        List<UpgradeInventoryCard> cards = currentUpgradeCards();
+        clampOverviewSelection(cards);
+        int pageX = 140;
+        int pageY = 110;
+        int pageWidth = WIDTH - pageX * 2;
+        int pageHeight = 1190;
+        int glow = 9 + (int) (pulse(0.16, 41) * 11);
+        g.setColor(withAlpha(COLOR_XP, 34 + glow * 3));
+        g.fillRoundRect(pageX - glow, pageY - glow, pageWidth + glow * 2, pageHeight + glow * 2, 14, 14);
+        g.setColor(COLOR_PANEL_DARK);
+        g.fillRoundRect(pageX, pageY, pageWidth, pageHeight, 10, 10);
+        g.setStroke(STROKE_CARD_ACTIVE);
+        g.setColor(withAlpha(COLOR_XP, 205));
+        g.drawRoundRect(pageX, pageY, pageWidth, pageHeight, 10, 10);
+
+        g.setFont(uiFont(FONT_CHOICE_TITLE, FONT_CHOICE_TITLE_ZH).deriveFont(44f));
+        g.setColor(Color.WHITE);
+        g.drawString(ui("Upgrade Overview", "升级总览"), pageX + 48, pageY + 74);
+        g.setFont(uiFont(FONT_OVERLAY_BODY, FONT_OVERLAY_BODY_ZH).deriveFont(21f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        g.drawString(ui("Manage the current build, inspect slots, and sell owned cards for XP.",
+                "管理当前 build、查看槽位，并出售已拥有卡片换 XP。"), pageX + 50, pageY + 116);
+        drawCloseOverviewOption(g, pageX + pageWidth - 176, pageY + 46, 132);
+
+        int statY = pageY + 158;
+        int statGap = 20;
+        int statWidth = (pageWidth - 96 - statGap * 3) / 4;
+        drawOverviewStatTile(g, pageX + 48, statY, statWidth, 118, COLOR_RARITY_UNCOMMON,
+                ui("Blue Slots", "蓝色槽位"), blueUpgradeCount + "/" + MAX_BLUE_UPGRADES,
+                ui("ordinary rare cap", "稀有升级上限"));
+        drawOverviewStatTile(g, pageX + 48 + (statWidth + statGap), statY, statWidth, 118, COLOR_RARITY_HIGH,
+                ui("Gold Talents", "金色天赋"), goldTalentCount() + "/" + MAX_GOLD_TALENTS,
+                ui("reserved talent slots", "预留天赋槽"));
+        drawOverviewStatTile(g, pageX + 48 + (statWidth + statGap) * 2, statY, statWidth, 118, COLOR_RARITY_RED,
+                ui("Weapons", "武器"), highTalentCount() + "/" + highTalents.length,
+                ui("Boss reward only", "仅 Boss 奖励"));
+        drawOverviewStatTile(g, pageX + 48 + (statWidth + statGap) * 3, statY, statWidth, 118, COLOR_XP,
+                ui("Sell Value", "出售价格"), "+" + selectedSellExperienceValue(cards) + " XP",
+                ui("Enter/Delete/S", "Enter/Delete/S"));
+
+        int inventoryX = pageX + 48;
+        int contentY = pageY + 316;
+        int detailWidth = 560;
+        int detailGap = 28;
+        int inventoryWidth = pageWidth - 96 - detailWidth - detailGap;
+        int contentHeight = pageHeight - 366;
+        drawFullOverviewInventory(g, inventoryX, contentY, inventoryWidth, contentHeight, cards);
+        drawSelectedOverviewDetails(g, inventoryX + inventoryWidth + detailGap, contentY,
+                detailWidth, contentHeight, cards);
     }
 
     void drawHighReplacementOverlay(Graphics2D g) {
@@ -3759,10 +4338,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         g.fillRect(0, 0, WIDTH, HEIGHT);
         g.setColor(Color.WHITE);
         g.setFont(uiFont(FONT_CHOICE_TITLE, FONT_CHOICE_TITLE_ZH));
-        drawCentered(g, ui("Replace High Talent", "替换高稀有天赋"), WIDTH / 2, 165);
+        drawCentered(g, ui("Replace Weapon", "替换红色武器"), WIDTH / 2, 165);
         g.setFont(uiFont(FONT_OVERLAY_BODY, FONT_OVERLAY_BODY_ZH));
-        drawCentered(g, ui("Press 1/2/3 to replace a held talent, or Esc to abandon the new one.",
-                "按 1/2/3 替换已有天赋，或 Esc 放弃新天赋。"), WIDTH / 2, 210);
+        drawCentered(g, ui("Only one weapon slot is available. Press 1 to replace it, or Esc to abandon the new one.",
+                "红色武器只有 1 个槽位。按 1 替换，或 Esc 放弃新武器。"), WIDTH / 2, 210);
         if (pendingHighTalent != null) {
             drawCompactHighCard(g, pendingHighTalent, ui("NEW", "新"), WIDTH / 2 - 170, 250, 340, 130,
                     colorFor(pendingHighTalent.rarity));
@@ -3770,8 +4349,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         for (int i = 0; i < highTalents.length; i++) {
             UpgradeEffect effect = highTalents[i];
             UpgradeCard card = effect == null ? null : createCard(effect, rarityForEffect(effect));
-            drawCompactHighCard(g, card, String.valueOf(i + 1), WIDTH / 2 - 465 + i * 310, 455, 280, 170,
-                    COLOR_RARITY_HIGH);
+            drawCompactHighCard(g, card, String.valueOf(i + 1), WIDTH / 2 - 140, 455, 280, 170,
+                    COLOR_RARITY_RED);
         }
     }
 
@@ -3835,34 +4414,413 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     void drawUpgradeCard(Graphics2D g, UpgradeCard card, int index, int x, int y) {
+        drawUpgradeCard(g, card, index, x, y, 280, 210);
+    }
+
+    void drawUpgradeCard(Graphics2D g, UpgradeCard card, int index, int x, int y, int width, int height) {
         if (card == null) {
             return;
         }
-        int width = 280;
-        int height = 210;
-        boolean selected = index == selectedUpgradeIndex;
+        boolean selected = !overviewSelectionActive && index == selectedUpgradeIndex;
         Color rarityColor = colorFor(card.rarity);
+        int glow = selected ? 8 + (int) (pulse(0.22, index * 31) * 11) : 0;
         if (selected) {
-            g.setColor(withAlpha(rarityColor, 70));
-            g.fillRoundRect(x - 8, y - 8, width + 16, height + 16, 14, 14);
+            g.setColor(withAlpha(rarityColor, 74));
+            g.fillRoundRect(x - glow, y - glow, width + glow * 2, height + glow * 2, 16, 16);
         }
         g.setColor(COLOR_PANEL_DARK);
-        g.fillRoundRect(x, y, width, height, 8, 8);
-        g.setColor(rarityColor);
+        g.fillRoundRect(x, y, width, height, 10, 10);
+        g.setColor(withAlpha(rarityColor, 34));
+        g.fillRoundRect(x + 4, y + 4, width - 8, 72, 8, 8);
         g.setStroke(selected ? STROKE_CARD_ACTIVE : STROKE_CARD_IDLE);
+        g.setColor(withAlpha(rarityColor, selected ? 245 : 178));
+        g.drawRoundRect(x, y, width, height, 10, 10);
+
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(18f));
+        g.setColor(rarityColor);
+        drawFittedString(g, rarityLabel(card.rarity), x + 24, y + 42, width - 130);
+        drawChoiceKeyCap(g, String.valueOf(index + 1), x + width - 82, y + 22, 56, 44,
+                selected ? rarityColor : COLOR_TYPED_SUFFIX);
+
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(30f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, cardTitle(card), x + 24, y + 118, width - 48);
+        g.setColor(withAlpha(rarityColor, 150));
+        g.fillRoundRect(x + 24, y + 142, width - 48, 4, 3, 3);
+
+        g.setFont(uiFont(FONT_OVERLAY_BODY, FONT_OVERLAY_BODY_ZH).deriveFont(20f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        drawWrappedLimited(g, upgradeChoiceDescription(card), x + 24, y + 184, width - 48, 28, 5);
+
+        int footerY = y + height - 72;
+        g.setColor(withAlpha(rarityColor, selected ? 46 : 28));
+        g.fillRoundRect(x + 18, footerY, width - 36, 48, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(rarityColor, 170));
+        g.drawRoundRect(x + 18, footerY, width - 36, 48, 8, 8);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(17f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, ui("Enter to install", "Enter 安装"), x + 34, footerY + 31, width / 2);
+        g.setColor(rarityColor);
+        String classText = ui("Upgrade", "升级");
+        if (card.rarity == UpgradeRarity.HIGH) {
+            classText = ui("Gold Talent", "金色天赋");
+        } else if (card.rarity == UpgradeRarity.RED) {
+            classText = ui("Weapon Upgrade", "红色武器");
+        }
+        drawFittedString(g, classText, x + width / 2 + 10, footerY + 31, width / 2 - 44);
+    }
+
+    void drawUpgradeOverview(Graphics2D g, int x, int y, int width, int height) {
+        List<UpgradeInventoryCard> cards = currentUpgradeCards();
+        clampOverviewSelection(cards);
+        Color accent = bossRewardChoice ? COLOR_RARITY_RED : COLOR_UPGRADE_READY;
+        int glow = 7 + (int) (pulse(0.18, 83) * 9);
+        g.setColor(withAlpha(accent, 26 + glow * 3));
+        g.fillRoundRect(x - glow, y - glow, width + glow * 2, height + glow * 2, 14, 14);
+        g.setColor(COLOR_PANEL_DARK);
+        g.fillRoundRect(x, y, width, height, 10, 10);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, 196));
+        g.drawRoundRect(x, y, width, height, 10, 10);
+
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(26f));
+        g.setColor(Color.WHITE);
+        g.drawString(ui("Build Manager", "Build 管理区"), x + 28, y + 44);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(15f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        drawFittedString(g, ui("Slots, owned cards, sell value", "槽位、已拥有卡、出售价格"),
+                x + 30, y + 72, width - 210);
+        if (!bossRewardChoice && pendingUpgradeChoices > 0) {
+            drawAbandonUpgradeOption(g, x + width - 146, y + 30, 116);
+        }
+
+        int tileGap = 14;
+        int tileWidth = (width - 56 - tileGap) / 2;
+        int tileHeight = 92;
+        int tileY = y + 104;
+        drawOverviewStatTile(g, x + 28, tileY, tileWidth, tileHeight, COLOR_RARITY_UNCOMMON,
+                ui("Blue", "蓝色"), blueUpgradeCount + "/" + MAX_BLUE_UPGRADES,
+                ui("slot cap", "槽位上限"));
+        drawOverviewStatTile(g, x + 28 + tileWidth + tileGap, tileY, tileWidth, tileHeight, COLOR_RARITY_HIGH,
+                ui("Gold", "金色"), goldTalentCount() + "/" + MAX_GOLD_TALENTS,
+                ui("talents", "天赋"));
+        drawOverviewStatTile(g, x + 28, tileY + tileHeight + tileGap, tileWidth, tileHeight, COLOR_RARITY_RED,
+                ui("Weapons", "武器"), highTalentCount() + "/" + highTalents.length,
+                ui("Boss only", "Boss 专属"));
+        drawOverviewStatTile(g, x + 28 + tileWidth + tileGap, tileY + tileHeight + tileGap,
+                tileWidth, tileHeight, COLOR_XP,
+                ui("Sell", "售价"), "+" + selectedSellExperienceValue(cards) + " XP",
+                ui("Enter/S", "Enter/S"));
+
+        int listTitleY = tileY + tileHeight * 2 + tileGap + 48;
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(22f));
+        g.setColor(Color.WHITE);
+        g.drawString(ui("Owned Upgrade Cards", "已拥有升级卡"), x + 28, listTitleY);
+        int cardStartY = listTitleY + 28;
+        int cardWidth = width - 56;
+        int cardHeight = 112;
+        int gap = 13;
+        int footerY = y + height - 34;
+        int maxVisibleCards = Math.max(1, (footerY - cardStartY + gap) / (cardHeight + gap));
+        if (cards.size() == 0) {
+            drawEmptyUpgradeInventoryCard(g, x + 28, cardStartY, cardWidth, Math.min(150, footerY - cardStartY - 10));
+        } else {
+            int pageStart = selectedOverviewCardIndex / maxVisibleCards * maxVisibleCards;
+            int pageEnd = Math.min(cards.size(), pageStart + maxVisibleCards);
+            for (int i = pageStart; i < pageEnd; i++) {
+                int local = i - pageStart;
+                int cardX = x + 28;
+                int cardY = cardStartY + local * (cardHeight + gap);
+                drawOwnedUpgradeCard(g, cards.get(i), cardX, cardY, cardWidth, cardHeight,
+                        overviewSelectionActive && i == selectedOverviewCardIndex);
+            }
+            g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(15f));
+            g.setColor(COLOR_TYPED_SUFFIX);
+            String range = (pageStart + 1) + "-" + pageEnd + " / " + cards.size();
+            drawFittedString(g, range, x + width - 115, listTitleY, 85);
+        }
+
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(15f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        if (bossRewardChoice) {
+            drawFittedString(g, ui("Boss reward: selling is disabled until this reward is resolved.",
+                    "Boss 奖励中：先处理奖励，再出售卡片。"), x + 28, y + height - 20, width - 56);
+        } else {
+            drawFittedString(g, ui("Down enters cards. Left/Right select. Enter/Delete/S sells.",
+                    "Down 进入卡片。左右选择。Enter/Delete/S 出售。"), x + 28, y + height - 20, width - 56);
+        }
+    }
+
+    void drawOverviewStatTile(Graphics2D g, int x, int y, int width, int height, Color accent,
+            String label, String value, String detail) {
+        g.setColor(withAlpha(accent, 36));
+        g.fillRoundRect(x, y, width, height, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, 170));
+        g.drawRoundRect(x, y, width, height, 8, 8);
+        g.setColor(withAlpha(accent, 105));
+        g.fillRoundRect(x + 4, y + 4, width - 8, 8, 5, 5);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(15f));
+        g.setColor(accent);
+        drawFittedString(g, label, x + 16, y + 26, width - 32);
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(height >= 110 ? 30f : 24f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, value, x + 16, y + height - 38, width - 32);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(13f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        drawFittedString(g, detail, x + 16, y + height - 14, width - 32);
+    }
+
+    void drawFullOverviewInventory(Graphics2D g, int x, int y, int width, int height,
+            List<UpgradeInventoryCard> cards) {
+        Color accent = COLOR_UPGRADE_READY;
+        g.setColor(withAlpha(accent, 20));
+        g.fillRoundRect(x, y, width, height, 10, 10);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, 150));
+        g.drawRoundRect(x, y, width, height, 10, 10);
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(26f));
+        g.setColor(Color.WHITE);
+        g.drawString(ui("Owned Upgrade Cards", "已拥有升级卡"), x + 26, y + 46);
+
+        int gridX = x + 24;
+        int gridY = y + 78;
+        int gap = 18;
+        int columns = 3;
+        int cardWidth = (width - 48 - gap * (columns - 1)) / columns;
+        int cardHeight = 152;
+        int rows = Math.max(1, (height - 116) / (cardHeight + gap));
+        int maxVisibleCards = Math.max(columns, rows * columns);
+        if (cards.size() == 0) {
+            drawEmptyUpgradeInventoryCard(g, gridX, gridY, width - 48, 180);
+            return;
+        }
+
+        int pageStart = selectedOverviewCardIndex / maxVisibleCards * maxVisibleCards;
+        int pageEnd = Math.min(cards.size(), pageStart + maxVisibleCards);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(16f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        drawFittedString(g, (pageStart + 1) + "-" + pageEnd + " / " + cards.size(),
+                x + width - 135, y + 46, 105);
+        for (int i = pageStart; i < pageEnd; i++) {
+            int local = i - pageStart;
+            int col = local % columns;
+            int row = local / columns;
+            int cardX = gridX + col * (cardWidth + gap);
+            int cardY = gridY + row * (cardHeight + gap);
+            drawOwnedUpgradeCard(g, cards.get(i), cardX, cardY, cardWidth, cardHeight,
+                    overviewSelectionActive && i == selectedOverviewCardIndex);
+        }
+    }
+
+    void drawSelectedOverviewDetails(Graphics2D g, int x, int y, int width, int height,
+            List<UpgradeInventoryCard> cards) {
+        g.setColor(withAlpha(COLOR_XP, 20));
+        g.fillRoundRect(x, y, width, height, 10, 10);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(COLOR_XP, 150));
+        g.drawRoundRect(x, y, width, height, 10, 10);
+
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(26f));
+        g.setColor(Color.WHITE);
+        g.drawString(ui("Selected Card", "当前选中卡"), x + 24, y + 46);
+
+        if (cards.size() == 0) {
+            drawEmptyUpgradeInventoryCard(g, x + 24, y + 78, width - 48, 160);
+            int nextY = drawSlotLoadout(g, x + 24, y + 300, width - 48,
+                    ui("Gold Slots", "金色槽位"), COLOR_RARITY_HIGH, goldTalents);
+            drawSlotLoadout(g, x + 24, nextY + 18, width - 48,
+                    ui("Weapon Slots", "武器槽位"), COLOR_RARITY_RED, highTalents);
+            return;
+        }
+
+        UpgradeInventoryCard inventoryCard = cards.get(selectedOverviewCardIndex);
+        UpgradeCard card = createCard(inventoryCard.effect, inventoryCard.rarity);
+        Color accent = colorFor(inventoryCard.rarity);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(16f));
+        g.setColor(accent);
+        drawFittedString(g, rarityLabel(inventoryCard.rarity) + "  " + inventoryStatusText(inventoryCard),
+                x + 24, y + 88, width - 48);
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(28f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, cardTitle(card), x + 24, y + 128, width - 48);
+        g.setColor(withAlpha(accent, 150));
+        g.fillRoundRect(x + 24, y + 148, width - 48, 4, 3, 3);
+        g.setFont(uiFont(FONT_OVERLAY_BODY, FONT_OVERLAY_BODY_ZH).deriveFont(18f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        drawWrappedLimited(g, cardDescription(card), x + 24, y + 188, width - 48, 25, 4);
+
+        int sellY = y + 286;
+        g.setColor(withAlpha(COLOR_XP, 40));
+        g.fillRoundRect(x + 24, sellY, width - 48, 86, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(COLOR_XP, 180));
+        g.drawRoundRect(x + 24, sellY, width - 48, 86, 8, 8);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(15f));
+        g.setColor(COLOR_TYPED_SUFFIX);
+        g.drawString(ui("Sell refund", "出售返还"), x + 44, sellY + 28);
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(30f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, "+" + sellExperienceValue(inventoryCard) + " XP", x + 44, sellY + 66, width - 88);
+
+        int commandY = sellY + 104;
+        drawCommandPill(g, x + 24, commandY, width - 48, COLOR_XP,
+                ui("Enter / Delete / S sells selected card", "Enter / Delete / S 出售当前卡"));
+
+        int nextY = drawSlotLoadout(g, x + 24, commandY + 68, width - 48,
+                ui("Gold Slots", "金色槽位"), COLOR_RARITY_HIGH, goldTalents);
+        drawSlotLoadout(g, x + 24, nextY + 18, width - 48,
+                ui("Weapon Slots", "武器槽位"), COLOR_RARITY_RED, highTalents);
+    }
+
+    void drawAbandonUpgradeOption(Graphics2D g, int x, int y, int width) {
+        int pulseAlpha = 40 + (int) (pulse(0.24, 117) * 28);
+        g.setColor(withAlpha(COLOR_TARGET_SWITCHER, pulseAlpha));
+        g.fillRoundRect(x, y, width, 36, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(COLOR_TARGET_SWITCHER, 210));
+        g.drawRoundRect(x, y, width, 36, 8, 8);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, ui("Esc Abandon", "Esc 放弃"),
+                x + 12, y + 24, width - 24);
+    }
+
+    void drawCloseOverviewOption(Graphics2D g, int x, int y, int width) {
+        int pulseAlpha = 36 + (int) (pulse(0.24, 117) * 22);
+        g.setColor(withAlpha(COLOR_XP, pulseAlpha));
+        g.fillRoundRect(x, y, width, 36, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(COLOR_XP, 210));
+        g.drawRoundRect(x, y, width, 36, 8, 8);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, ui("Space Close", "Space 关闭"),
+                x + 12, y + 24, width - 24);
+    }
+
+    void drawEmptyUpgradeInventoryCard(Graphics2D g, int x, int y, int width, int height) {
+        g.setColor(withAlpha(COLOR_TYPED_SUFFIX, 18));
+        g.fillRoundRect(x, y, width, height, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(COLOR_TYPED_SUFFIX, 92));
         g.drawRoundRect(x, y, width, height, 8, 8);
         g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH));
-        g.drawString((index + 1) + "  " + rarityLabel(card.rarity), x + 18, y + 34);
-        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH));
-        g.setColor(Color.WHITE);
-        g.drawString(cardTitle(card), x + 18, y + 80);
-        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH));
         g.setColor(COLOR_TYPED_SUFFIX);
-        drawWrapped(g, upgradeChoiceDescription(card), x + 18, y + 118, width - 36, 24);
-        if (card.rarity == UpgradeRarity.HIGH) {
-            g.setColor(rarityColor);
-            g.drawString(ui("High Talent", "高稀有天赋"), x + 18, y + height - 24);
+        drawCentered(g, ui("No owned upgrade cards yet.", "还没有已拥有的升级卡片。"), x + width / 2,
+                y + height / 2 + 5);
+    }
+
+    void drawOwnedUpgradeCard(Graphics2D g, UpgradeInventoryCard inventoryCard,
+            int x, int y, int width, int height, boolean selected) {
+        Color accent = colorFor(inventoryCard.rarity);
+        if (selected) {
+            int glow = 5 + (int) (pulse(0.2, inventoryCard.effect.ordinal()) * 7);
+            g.setColor(withAlpha(accent, 68));
+            g.fillRoundRect(x - glow, y - glow, width + glow * 2, height + glow * 2, 10, 10);
         }
+        g.setColor(new Color(11, 15, 24, 238));
+        g.fillRoundRect(x, y, width, height, 8, 8);
+        g.setStroke(selected ? STROKE_CARD_ACTIVE : STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, selected ? 235 : 165));
+        g.drawRoundRect(x, y, width, height, 8, 8);
+        g.setColor(withAlpha(accent, 38));
+        g.fillRoundRect(x + 2, y + 2, width - 4, 30, 7, 7);
+
+        UpgradeCard card = createCard(inventoryCard.effect, inventoryCard.rarity);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(14f));
+        g.setColor(accent);
+        drawFittedString(g, rarityLabel(inventoryCard.rarity), x + 14, y + 22, width - 128);
+        g.setColor(Color.WHITE);
+        drawFittedString(g, inventoryStatusText(inventoryCard), x + width - 104, y + 22, 90);
+
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(height >= 140 ? 22f : 19f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, cardTitle(card), x + 14, y + 60, width - 28);
+        if (height >= 140) {
+            g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(14f));
+            g.setColor(COLOR_TYPED_SUFFIX);
+            drawWrappedLimited(g, cardDescription(card), x + 14, y + 90, width - 28, 20, 2);
+        }
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(14f));
+        g.setColor(COLOR_XP);
+        drawFittedString(g, ui("Sell +", "售价 +") + sellExperienceValue(inventoryCard) + " XP",
+                x + 14, y + height - 14, width - 28);
+    }
+
+    void drawChoiceKeyCap(Graphics2D g, String label, int x, int y, int width, int height, Color accent) {
+        g.setColor(withAlpha(accent, 40));
+        g.fillRoundRect(x, y, width, height, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, 205));
+        g.drawRoundRect(x, y, width, height, 8, 8);
+        g.setFont(uiFont(FONT_START_BUTTON, FONT_START_BUTTON_ZH).deriveFont(24f));
+        g.setColor(Color.WHITE);
+        drawCentered(g, label, x + width / 2, y + height / 2 + 9);
+    }
+
+    void drawCommandPill(Graphics2D g, int x, int y, int width, Color accent, String text) {
+        g.setColor(withAlpha(accent, 35));
+        g.fillRoundRect(x, y, width, 44, 8, 8);
+        g.setStroke(STROKE_CARD_IDLE);
+        g.setColor(withAlpha(accent, 180));
+        g.drawRoundRect(x, y, width, 44, 8, 8);
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(15f));
+        g.setColor(Color.WHITE);
+        drawFittedString(g, text, x + 14, y + 28, width - 28);
+    }
+
+    int drawSlotLoadout(Graphics2D g, int x, int y, int width, String title, Color accent, UpgradeEffect[] effects) {
+        g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(16f));
+        g.setColor(accent);
+        g.drawString(title, x, y + 18);
+        int rowY = y + 34;
+        for (int i = 0; i < effects.length; i++) {
+            g.setColor(withAlpha(accent, effects[i] == null ? 18 : 34));
+            g.fillRoundRect(x, rowY, width, 34, 7, 7);
+            g.setStroke(STROKE_CARD_IDLE);
+            g.setColor(withAlpha(accent, effects[i] == null ? 90 : 160));
+            g.drawRoundRect(x, rowY, width, 34, 7, 7);
+            g.setFont(uiFont(FONT_PRESSURE, FONT_PRESSURE_ZH).deriveFont(14f));
+            g.setColor(Color.WHITE);
+            drawFittedString(g, (i + 1) + "  " + (effects[i] == null ? ui("Empty", "空") : effectTitle(effects[i])),
+                    x + 12, rowY + 23, width - 24);
+            rowY += 42;
+        }
+        return rowY;
+    }
+
+    String inventoryStatusText(UpgradeInventoryCard inventoryCard) {
+        if (inventoryCard.rarity == UpgradeRarity.RED) {
+            return ui("Weapon ", "武器 ") + (inventoryCard.slotIndex + 1);
+        }
+        if (inventoryCard.rarity == UpgradeRarity.HIGH) {
+            return ui("Gold ", "金色 ") + (inventoryCard.slotIndex + 1);
+        }
+        return "Lv " + inventoryCard.level;
+    }
+
+    int highTalentCount() {
+        int count = 0;
+        for (UpgradeEffect effect : highTalents) {
+            if (effect != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    String compactSlotSummary(UpgradeEffect[] effects) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < effects.length; i++) {
+            if (i > 0) {
+                builder.append("  ");
+            }
+            builder.append(i + 1).append(":");
+            builder.append(effects[i] == null ? ui("Empty", "空") : effectTitle(effects[i]));
+        }
+        return builder.toString();
     }
 
     void drawCompactHighCard(Graphics2D g, UpgradeCard card, String marker,
@@ -3888,6 +4846,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     Color colorFor(UpgradeRarity rarity) {
+        if (rarity == UpgradeRarity.RED) {
+            return COLOR_RARITY_RED;
+        }
         if (rarity == UpgradeRarity.HIGH) {
             return COLOR_RARITY_HIGH;
         }
@@ -3909,8 +4870,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (card.effect != UpgradeEffect.TRIGGER_TUNING) {
             return cardDescription(card);
         }
-        return ui("Fire one extra bullet; each pellet deals less damage.",
-                "多发射一次子弹，但每颗弹丸伤害减少。");
+        return ui("Add one bullet or laser beam; total volley damage rises, then splits.",
+                "增加一发子弹或一道激光；齐射总伤害提高后再分摊。");
     }
 
     String rarityLabel(UpgradeRarity rarity) {
@@ -3985,6 +4946,37 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         if (line.length() > 0) {
             g.drawString(line, x, lineY);
+        }
+    }
+
+    void drawWrappedLimited(Graphics2D g, String text, int x, int y, int width, int lineHeight, int maxLines) {
+        FontMetrics metrics = g.getFontMetrics();
+        boolean spaced = text.indexOf(' ') >= 0;
+        String[] words = spaced ? text.split(" ") : text.split("");
+        String line = "";
+        int lineY = y;
+        int drawn = 0;
+        for (String word : words) {
+            if (word.length() == 0) {
+                continue;
+            }
+            String separator = spaced && line.length() > 0 ? " " : "";
+            String candidate = line + separator + word;
+            if (metrics.stringWidth(candidate) > width && line.length() > 0) {
+                if (drawn >= maxLines - 1) {
+                    drawFittedString(g, line + (spaced ? " " : "") + word, x, lineY, width);
+                    return;
+                }
+                g.drawString(line, x, lineY);
+                drawn++;
+                lineY += lineHeight;
+                line = word;
+            } else {
+                line = candidate;
+            }
+        }
+        if (line.length() > 0 && drawn < maxLines) {
+            drawFittedString(g, line, x, lineY, width);
         }
     }
 

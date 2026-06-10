@@ -30,9 +30,30 @@
   - Defeated non-Boss enemies now drop lane-bound XP balls instead of direct stat orbs.
   - XP balls are collected by entering that lane and approaching them; same-lane attraction helps nearby pickups.
   - Full XP stores a pending upgrade choice instead of interrupting typing immediately.
-  - Space opens the pending 3-card upgrade menu when available; otherwise it keeps its emergency ram role.
+  - Space opens the pending 3-card upgrade menu when available; otherwise it opens the current build overview.
   - Upgrade cards now roll rarity slot patterns first, then roll concrete buffs inside each slot.
-  - High rarity is scaffolded as three build-defining slots: Weapon, Control, and Automation.
+  - Rarity handling now separates ordinary upgrades, capped blue upgrades, reserved gold talents, and Boss-only red weapons.
+- Reworked upgrade rarity rules:
+  - Blue upgrades are limited to three total selections.
+  - Gold talents are limited to three slots and have a reserved interface for future talent designs.
+  - Weapon upgrades are now red upgrades and share one exclusive weapon slot.
+  - Red weapon upgrades only appear from Boss deaths.
+  - Boss deaths directly open a reward menu with one red weapon and two reserved gold talent slots.
+  - The Space upgrade page now uses larger upgrade cards with clearer rarity bands, keycaps, selection glow, and command pills.
+  - The Space upgrade page now shows a larger build manager with blue, gold, weapon, and stat summaries.
+  - Space can now open the current build overview even when no pending upgrade choice is available, including while paused.
+  - The standalone Space overview is now a full build-management page with enlarged owned-card grid, selected-card details, slot loadouts, and sell controls.
+  - The Space upgrade page now includes a pulsing abandon option using the same neon panel style.
+  - The current build overview now shows owned upgrades as compact cards with rarity color, level, and sell value.
+  - Owned upgrade cards can be sold for XP worth one third of the current next-level requirement.
+  - Gold upgrade cards sell for twice the blue upgrade sell value.
+  - Selling a blue upgrade also frees one blue-upgrade slot.
+  - If multiple upgrade choices are queued, choosing one refreshes the menu into the next choice instead of closing it.
+- Added Trigger Tuning support for Laser Gun:
+  - Laser Gun now fires extra instant beams from Trigger Tuning.
+  - Tuned laser volleys raise total damage, split it across beams, and keep the existing per-pierce damage decay.
+- Fixed lane-word input feedback so keypress pulse effects are strictly bound to the lane that is actually being typed.
+- Fixed completed lane-word cards so the completed row stops active highlighting after the green completion pulse finishes.
 - Polished the neon UI layer:
   - Added lightweight animated neon grid and scanline backdrop.
   - Added smoother eased glow to active lanes, lane-word cards, the player, targets, XP balls, impacts, and the pressure meter.
@@ -47,5 +68,5 @@
 
 ## Verification
 
-- Smoke coverage includes version `1.0.1`, difficulty selection, F2 language switching, fixed progress-independent spawn density, fixed lane-word length, fullscreen state, high-resolution render scaling, word-repeat prevention, current typing speed calculation, XP pickup and attraction, upgrade menu selection, upgrade card application, and the existing combat/update loop checks.
+- Smoke coverage includes version `1.0.1`, difficulty selection, F2 language switching, fixed progress-independent spawn density, fixed lane-word length, fullscreen state, high-resolution render scaling, word-repeat prevention, current typing speed calculation, strict input-lane pulse feedback, completed-lane highlight suppression after the green pulse, XP pickup and attraction, upgrade menu selection, queued upgrade continuation, standalone upgrade overview, paused overview access, upgrade abandon, owned-upgrade selling, gold double-price selling, blue upgrade caps, one-slot red weapon replacement, Boss red-weapon reward menus, Trigger Tuning laser beams, upgrade card application, and the existing combat/update loop checks.
 - Render benchmark coverage can be run with `--perf`.

@@ -205,7 +205,8 @@ final class SmokeTest {
         int expectedSudoEffects = sudoPanel.sudoToolEffects().length
                 + sudoPanel.gameplayPoolFor(UpgradeRarity.COMMON).length
                 + sudoPanel.gameplayPoolFor(UpgradeRarity.UNCOMMON).length
-                + sudoPanel.gameplayPoolFor(UpgradeRarity.HIGH).length;
+                + sudoPanel.gameplayPoolFor(UpgradeRarity.HIGH).length
+                + sudoPanel.gameplayPoolFor(UpgradeRarity.RED).length;
         if (sudoPanel.allTestUpgradeEffects().length != expectedSudoEffects) {
             throw new IllegalStateException("Smoke test failed: sudo backend is not synchronized with gameplay pools.");
         }
@@ -237,8 +238,9 @@ final class SmokeTest {
             throw new IllegalStateException("Smoke test failed: test backend labels did not localize.");
         }
         UpgradeCard localizedTriggerCard = sudoPanel.createCard(UpgradeEffect.TRIGGER_TUNING, UpgradeRarity.COMMON);
-        if (!"多发射一次子弹，但每颗弹丸伤害减少。".equals(sudoPanel.upgradeChoiceDescription(localizedTriggerCard))) {
-            throw new IllegalStateException("Smoke test failed: single-shot trigger tuning description was not dynamic.");
+        if (!"增加一发子弹或一道激光；齐射总伤害提高后再分摊。".equals(
+                sudoPanel.upgradeChoiceDescription(localizedTriggerCard))) {
+            throw new IllegalStateException("Smoke test failed: trigger tuning description was not dynamic.");
         }
         sudoPanel.choiceMode = ChoiceMode.TEST_BACKEND;
         selectTestEffect(sudoPanel, UpgradeEffect.CALIBRATED_DAMAGE);
@@ -358,6 +360,9 @@ final class SmokeTest {
         if (!"j".equals(panel.typed) || panel.typingLane != 1) {
             throw new IllegalStateException("Smoke test failed: mismatch did not restart with the new letter.");
         }
+        if (!panel.laneHasInputPulse(1) || panel.laneHasInputPulse(0)) {
+            throw new IllegalStateException("Smoke test failed: input pulse was not strictly bound to the typing lane.");
+        }
         if (panel.wrongFlashTicks <= 0 || panel.wrongFlashLane != 0) {
             throw new IllegalStateException("Smoke test failed: mismatch did not mark the broken lane.");
         }
@@ -376,8 +381,25 @@ final class SmokeTest {
         if (panel.completePulseTicks <= 0 || panel.completePulseLane != 0) {
             throw new IllegalStateException("Smoke test failed: completed lane word did not trigger finish feedback.");
         }
+        if (!panel.laneWordShowsActiveHighlight(0)) {
+            throw new IllegalStateException("Smoke test failed: completed lane lost its highlight before the green pulse ended.");
+        }
         if (!hasBulletKind(panel, BulletKind.BASIC, false)) {
             throw new IllegalStateException("Smoke test failed: basic bullets did not use the line trail style.");
+        }
+        GamePanel highlightPanel = new GamePanel(false);
+        highlightPanel.laneWords[0] = "code";
+        highlightPanel.laneWords[1] = "loop";
+        typeWord(highlightPanel, "code");
+        for (int i = 0; i < GamePanel.WORD_COMPLETE_PULSE_TICKS; i++) {
+            highlightPanel.step();
+        }
+        if (highlightPanel.completePulseTicks != 0 || highlightPanel.laneWordShowsActiveHighlight(0)) {
+            throw new IllegalStateException("Smoke test failed: completed lane stayed highlighted after the green pulse.");
+        }
+        highlightPanel.handleLetter(highlightPanel.laneWords[0].charAt(0));
+        if (!highlightPanel.laneWordShowsActiveHighlight(0)) {
+            throw new IllegalStateException("Smoke test failed: completed lane highlight did not return when typing restarted.");
         }
         for (int i = 0; i < GamePanel.logicTicks(16); i++) {
             panel.step();
@@ -462,6 +484,12 @@ final class SmokeTest {
                 || panel.upgradeChoices[1] == null || panel.upgradeChoices[2] == null) {
             throw new IllegalStateException("Smoke test failed: Space did not open the three-slot upgrade menu.");
         }
+        paintSmokeFrame(panel);
+        for (UpgradeCard card : panel.upgradeChoices) {
+            if (card.rarity == UpgradeRarity.HIGH || card.rarity == UpgradeRarity.RED) {
+                throw new IllegalStateException("Smoke test failed: normal upgrade menu offered boss-only rarities.");
+            }
+        }
         panel.keyPressed(key(panel, KeyEvent.VK_RIGHT));
         if (panel.selectedUpgradeIndex != 1) {
             throw new IllegalStateException("Smoke test failed: upgrade menu selection did not move right.");
@@ -471,17 +499,108 @@ final class SmokeTest {
         if (panel.choiceMode != ChoiceMode.NONE || panel.pendingUpgradeChoices >= pendingBeforeUpgrade) {
             throw new IllegalStateException("Smoke test failed: upgrade card was not applied from the menu.");
         }
+        GamePanel multiUpgradePanel = new GamePanel(false);
+        multiUpgradePanel.started = true;
+        multiUpgradePanel.pendingUpgradeChoices = 2;
+        multiUpgradePanel.openUpgradeMenu();
+        multiUpgradePanel.keyPressed(key(multiUpgradePanel, KeyEvent.VK_ENTER));
+        if (multiUpgradePanel.choiceMode != ChoiceMode.UPGRADE || multiUpgradePanel.pendingUpgradeChoices != 1
+                || multiUpgradePanel.upgradeChoices[0] == null || multiUpgradePanel.selectedUpgradeIndex != 0) {
+            throw new IllegalStateException("Smoke test failed: queued upgrade choices did not keep the menu open.");
+        }
+        multiUpgradePanel.keyPressed(key(multiUpgradePanel, KeyEvent.VK_ENTER));
+        if (multiUpgradePanel.choiceMode != ChoiceMode.NONE || multiUpgradePanel.pendingUpgradeChoices != 0) {
+            throw new IllegalStateException("Smoke test failed: final queued upgrade choice did not close the menu.");
+        }
+        GamePanel abandonPanel = new GamePanel(false);
+        abandonPanel.started = true;
+        abandonPanel.pendingUpgradeChoices = 1;
+        abandonPanel.keyPressed(key(abandonPanel, KeyEvent.VK_SPACE));
+        abandonPanel.keyPressed(key(abandonPanel, KeyEvent.VK_ESCAPE));
+        if (abandonPanel.choiceMode != ChoiceMode.NONE || abandonPanel.pendingUpgradeChoices != 0) {
+            throw new IllegalStateException("Smoke test failed: upgrade abandon option did not consume a pending choice.");
+        }
+        GamePanel overviewPanel = new GamePanel(false);
+        overviewPanel.started = true;
+        overviewPanel.xpToNext = 12;
+        overviewPanel.fireRateBonusPercent = GamePanel.TRIGGER_TUNING_STEP_PERCENT;
+        overviewPanel.keyPressed(key(overviewPanel, KeyEvent.VK_SPACE));
+        if (overviewPanel.choiceMode != ChoiceMode.OVERVIEW || !overviewPanel.overviewSelectionActive
+                || overviewPanel.pendingUpgradeChoices != 0 || overviewPanel.upgradeChoices[0] != null
+                || overviewPanel.upgradeChoices[1] != null || overviewPanel.upgradeChoices[2] != null) {
+            throw new IllegalStateException("Smoke test failed: Space did not open the standalone upgrade overview.");
+        }
+        paintSmokeFrame(overviewPanel);
+        int overviewTickBefore = overviewPanel.tick;
+        overviewPanel.step();
+        if (overviewPanel.tick != overviewTickBefore) {
+            throw new IllegalStateException("Smoke test failed: standalone upgrade overview did not freeze logic.");
+        }
+        overviewPanel.keyPressed(key(overviewPanel, KeyEvent.VK_ENTER));
+        if (overviewPanel.fireRateBonusPercent != 0 || overviewPanel.xp != 4
+                || overviewPanel.choiceMode != ChoiceMode.OVERVIEW) {
+            throw new IllegalStateException("Smoke test failed: standalone overview could not sell an owned card.");
+        }
+        overviewPanel.keyPressed(key(overviewPanel, KeyEvent.VK_SPACE));
+        if (overviewPanel.choiceMode != ChoiceMode.NONE) {
+            throw new IllegalStateException("Smoke test failed: Space did not close the standalone overview.");
+        }
+        GamePanel pausedOverviewPanel = new GamePanel(false);
+        pausedOverviewPanel.started = true;
+        pausedOverviewPanel.paused = true;
+        pausedOverviewPanel.keyPressed(key(pausedOverviewPanel, KeyEvent.VK_SPACE));
+        if (pausedOverviewPanel.choiceMode != ChoiceMode.OVERVIEW || !pausedOverviewPanel.paused) {
+            throw new IllegalStateException("Smoke test failed: Space did not open overview while paused.");
+        }
+        pausedOverviewPanel.keyPressed(key(pausedOverviewPanel, KeyEvent.VK_ESCAPE));
+        if (pausedOverviewPanel.choiceMode != ChoiceMode.NONE || !pausedOverviewPanel.paused) {
+            throw new IllegalStateException("Smoke test failed: closing paused overview changed pause state.");
+        }
 
         GamePanel bossRewardPanel = new GamePanel(false);
         bossRewardPanel.started = true;
         bossRewardPanel.bossLevel = 2;
         Target rewardBoss = Target.boss(0, 2);
         bossRewardPanel.rewardFor(rewardBoss);
-        if (bossRewardPanel.choiceMode != ChoiceMode.NONE || bossRewardPanel.xpOrbs.size() != 0) {
-            throw new IllegalStateException("Smoke test failed: boss reward still opened a special menu or dropped an orb.");
+        if (bossRewardPanel.choiceMode != ChoiceMode.UPGRADE || !bossRewardPanel.bossRewardChoice
+                || bossRewardPanel.xpOrbs.size() != 0 || bossRewardPanel.pendingUpgradeChoices != 0) {
+            throw new IllegalStateException("Smoke test failed: boss reward did not open the boss-only upgrade menu.");
         }
-        if (bossRewardPanel.pendingUpgradeChoices <= 0 && bossRewardPanel.xp <= 0) {
-            throw new IllegalStateException("Smoke test failed: boss reward did not grant large XP.");
+        if (bossRewardPanel.upgradeChoices[0].rarity != UpgradeRarity.RED
+                || bossRewardPanel.upgradeChoices[1].rarity != UpgradeRarity.HIGH
+                || bossRewardPanel.upgradeChoices[2].rarity != UpgradeRarity.HIGH
+                || bossRewardPanel.upgradeChoices[1].effect != UpgradeEffect.GOLD_TALENT_PLACEHOLDER
+                || bossRewardPanel.upgradeChoices[2].effect != UpgradeEffect.GOLD_TALENT_PLACEHOLDER) {
+            throw new IllegalStateException("Smoke test failed: boss reward slots are not red plus reserved gold talents.");
+        }
+        UpgradeEffect bossWeapon = bossRewardPanel.upgradeChoices[0].effect;
+        bossRewardPanel.keyPressed(key(bossRewardPanel, KeyEvent.VK_1));
+        if (bossRewardPanel.choiceMode != ChoiceMode.NONE || bossRewardPanel.bossRewardChoice
+                || !bossRewardPanel.hasHighTalent(bossWeapon)) {
+            throw new IllegalStateException("Smoke test failed: boss red weapon choice was not installed cleanly.");
+        }
+        if (bossRewardPanel.highTalents.length != GamePanel.MAX_RED_WEAPONS
+                || GamePanel.MAX_RED_WEAPONS != 1) {
+            throw new IllegalStateException("Smoke test failed: red weapons are not limited to one slot.");
+        }
+        GamePanel singleWeaponPanel = new GamePanel(false);
+        singleWeaponPanel.started = true;
+        singleWeaponPanel.highTalents[0] = UpgradeEffect.RHYTHM_CANNON;
+        singleWeaponPanel.applyUpgradeCard(singleWeaponPanel.createCard(UpgradeEffect.FROST_FIELD,
+                UpgradeRarity.RED), false, true);
+        if (singleWeaponPanel.choiceMode != ChoiceMode.HIGH_REPLACE
+                || singleWeaponPanel.highTalents[0] != UpgradeEffect.RHYTHM_CANNON) {
+            throw new IllegalStateException("Smoke test failed: second red weapon did not enter replacement flow.");
+        }
+        singleWeaponPanel.keyPressed(key(singleWeaponPanel, KeyEvent.VK_2));
+        if (singleWeaponPanel.choiceMode != ChoiceMode.HIGH_REPLACE
+                || singleWeaponPanel.highTalents[0] != UpgradeEffect.RHYTHM_CANNON) {
+            throw new IllegalStateException("Smoke test failed: invalid red weapon replacement slot was accepted.");
+        }
+        singleWeaponPanel.keyPressed(key(singleWeaponPanel, KeyEvent.VK_1));
+        if (singleWeaponPanel.choiceMode != ChoiceMode.NONE
+                || singleWeaponPanel.highTalents[0] != UpgradeEffect.FROST_FIELD) {
+            throw new IllegalStateException("Smoke test failed: one-slot red weapon replacement did not install.");
         }
 
         panel.targets.clear();
@@ -578,6 +697,31 @@ final class SmokeTest {
             if (bullet.kind != BulletKind.PIERCE && bullet.hitTargets != null) {
                 throw new IllegalStateException("Smoke test failed: non-pierce bullets allocated hit target lists.");
             }
+        }
+        GamePanel tunedLaserPanel = new GamePanel(false);
+        tunedLaserPanel.fireRateBonusPercent = GamePanel.TRIGGER_TUNING_STEP_PERCENT;
+        Target tunedLaserTarget = Target.enemy(0, TargetKind.TANK);
+        tunedLaserTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(180);
+        tunedLaserTarget.hp = 100;
+        tunedLaserTarget.maxHp = 100;
+        tunedLaserPanel.targets.add(tunedLaserTarget);
+        tunedLaserPanel.fireLaserVolley(0, 10);
+        int tunedLaserDamage = 0;
+        double firstLaserY = Double.NaN;
+        boolean laserOffsetsDiffer = false;
+        for (Bullet bullet : tunedLaserPanel.bullets) {
+            if (bullet.kind == BulletKind.PIERCE) {
+                tunedLaserDamage += bullet.damage;
+                if (Double.isNaN(firstLaserY)) {
+                    firstLaserY = bullet.y;
+                } else if (Math.abs(firstLaserY - bullet.y) > 0.001) {
+                    laserOffsetsDiffer = true;
+                }
+            }
+        }
+        if (countBulletKind(tunedLaserPanel, BulletKind.PIERCE) != 2 || tunedLaserDamage != 12
+                || tunedLaserTarget.hp != tunedLaserTarget.maxHp - 12 || !laserOffsetsDiffer) {
+            throw new IllegalStateException("Smoke test failed: Trigger Tuning did not split Laser Gun beams.");
         }
 
         GamePanel homingPanel = new GamePanel(false);
@@ -718,10 +862,59 @@ final class SmokeTest {
         if (volleyPanel.singleShotPelletCount() != 3) {
             throw new IllegalStateException("Smoke test failed: trigger tuning did not add one pellet per level.");
         }
-        panel.applyUpgradeCard(new UpgradeCard("Rhythm Cannon", "test", UpgradeRarity.HIGH,
+        GamePanel sellPanel = new GamePanel(false);
+        sellPanel.started = true;
+        sellPanel.pendingUpgradeChoices = 1;
+        sellPanel.xpToNext = 12;
+        sellPanel.fireRateBonusPercent = GamePanel.TRIGGER_TUNING_STEP_PERCENT;
+        sellPanel.phaseSwitchLevel = 1;
+        sellPanel.blueUpgradeCount = 1;
+        sellPanel.openUpgradeMenu();
+        sellPanel.selectedOverviewCardIndex = inventoryIndexFor(sellPanel, UpgradeEffect.TRIGGER_TUNING);
+        sellPanel.overviewSelectionActive = true;
+        sellPanel.keyPressed(key(sellPanel, KeyEvent.VK_ENTER));
+        if (sellPanel.fireRateBonusPercent != 0 || sellPanel.xp != 4 || sellPanel.choiceMode != ChoiceMode.UPGRADE) {
+            throw new IllegalStateException("Smoke test failed: selling an upgrade did not refund one-third level XP.");
+        }
+        sellPanel.selectedOverviewCardIndex = inventoryIndexFor(sellPanel, UpgradeEffect.PHASE_SWITCH);
+        sellPanel.overviewSelectionActive = true;
+        sellPanel.keyPressed(key(sellPanel, KeyEvent.VK_ENTER));
+        if (sellPanel.phaseSwitchLevel != 0 || sellPanel.blueUpgradeCount != 0 || sellPanel.xp != 8) {
+            throw new IllegalStateException("Smoke test failed: selling a blue upgrade did not free the blue cap.");
+        }
+        GamePanel goldSellPanel = new GamePanel(false);
+        goldSellPanel.started = true;
+        goldSellPanel.xpToNext = 12;
+        goldSellPanel.goldTalents[0] = UpgradeEffect.CALIBRATED_DAMAGE;
+        goldSellPanel.openUpgradeOverview();
+        goldSellPanel.selectedOverviewCardIndex = inventoryIndexFor(goldSellPanel, UpgradeEffect.CALIBRATED_DAMAGE);
+        goldSellPanel.overviewSelectionActive = true;
+        goldSellPanel.keyPressed(key(goldSellPanel, KeyEvent.VK_ENTER));
+        if (goldSellPanel.goldTalents[0] != null || goldSellPanel.xp != 8) {
+            throw new IllegalStateException("Smoke test failed: selling a gold upgrade did not refund double blue XP.");
+        }
+        GamePanel blueCapPanel = new GamePanel(false);
+        blueCapPanel.applyUpgradeCard(blueCapPanel.createCard(UpgradeEffect.PHASE_SWITCH, UpgradeRarity.UNCOMMON),
+                true, true);
+        blueCapPanel.applyUpgradeCard(blueCapPanel.createCard(UpgradeEffect.BOSS_BREAKER, UpgradeRarity.UNCOMMON),
+                true, true);
+        blueCapPanel.applyUpgradeCard(blueCapPanel.createCard(UpgradeEffect.CROSSFEED, UpgradeRarity.UNCOMMON),
+                true, true);
+        if (blueCapPanel.blueUpgradeCount != GamePanel.MAX_BLUE_UPGRADES
+                || blueCapPanel.canOfferEffect(UpgradeEffect.PRESSURE_VALVE, UpgradeRarity.UNCOMMON)) {
+            throw new IllegalStateException("Smoke test failed: blue upgrade cap was not enforced.");
+        }
+        blueCapPanel.buildUpgradeChoices();
+        for (UpgradeCard card : blueCapPanel.upgradeChoices) {
+            if (card.rarity != UpgradeRarity.COMMON) {
+                throw new IllegalStateException("Smoke test failed: capped blue upgrades still appeared in choices.");
+            }
+        }
+
+        panel.applyUpgradeCard(new UpgradeCard("Rhythm Cannon", "test", UpgradeRarity.RED,
                 UpgradeEffect.RHYTHM_CANNON));
         if (!panel.hasHighTalent(UpgradeEffect.RHYTHM_CANNON)) {
-            throw new IllegalStateException("Smoke test failed: high rarity talent was not recorded.");
+            throw new IllegalStateException("Smoke test failed: red weapon was not recorded.");
         }
 
         if (GamePanel.ENABLE_GROUP_ONE_UPGRADES) {
@@ -1014,7 +1207,7 @@ final class SmokeTest {
             }
         }
 
-        System.out.println("Smoke test passed: typing, XP, choices, high talents, and update loop are alive.");
+        System.out.println("Smoke test passed: typing, XP, choices, red weapons, and update loop are alive.");
     }
 
     static void runRenderBenchmark() {
@@ -1074,6 +1267,15 @@ final class SmokeTest {
         return new KeyEvent(panel, KeyEvent.KEY_TYPED, 0, 0, KeyEvent.VK_UNDEFINED, keyChar);
     }
 
+    private static void paintSmokeFrame(GamePanel panel) {
+        BufferedImage frame = new BufferedImage(GamePanel.RENDER_WIDTH, GamePanel.RENDER_HEIGHT,
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = frame.createGraphics();
+        panel.setSize(GamePanel.RENDER_WIDTH, GamePanel.RENDER_HEIGHT);
+        panel.paint(graphics);
+        graphics.dispose();
+    }
+
     private static void validateWordBank() {
         for (int i = 0; i < GamePanel.WORDS.length; i++) {
             String word = GamePanel.WORDS[i];
@@ -1106,6 +1308,16 @@ final class SmokeTest {
             }
         }
         return false;
+    }
+
+    private static int inventoryIndexFor(GamePanel panel, UpgradeEffect wanted) {
+        List<UpgradeInventoryCard> cards = panel.currentUpgradeCards();
+        for (int i = 0; i < cards.size(); i++) {
+            if (cards.get(i).effect == wanted) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("Smoke test failed: upgrade inventory is missing " + wanted + ".");
     }
 
     private static void grantForSmoke(GamePanel panel, UpgradeEffect effect) {

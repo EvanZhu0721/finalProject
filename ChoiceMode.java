@@ -26,6 +26,7 @@ import javax.swing.Timer;
 enum ChoiceMode {
     NONE,
     UPGRADE,
+    OVERVIEW,
     HIGH_REPLACE,
     TEST_BACKEND
 }
