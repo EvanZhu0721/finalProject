@@ -19,19 +19,20 @@ final class BreakParticle {
         this.previousY = y;
         this.vx = vx;
         this.vy = vy;
-        this.size = size;
-        this.life = life;
-        this.maxLife = life;
+        this.size = GamePanel.worldAmount(size);
+        this.life = GamePanel.logicTicks(life);
+        this.maxLife = this.life;
         this.color = color;
     }
 
     void step() {
         previousX = x;
         previousY = y;
-        x += vx;
-        y += vy;
-        vx *= 0.94;
-        vy = vy * 0.94 + 0.12;
+        x += GamePanel.gameplayStep(vx);
+        y += GamePanel.gameplayStep(vy);
+        double damping = Math.pow(0.94, GamePanel.GAMEPLAY_STEP_SCALE);
+        vx *= damping;
+        vy = vy * damping + GamePanel.gameplayStep(0.12);
         life--;
     }
 }

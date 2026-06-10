@@ -28,5 +28,7 @@ enum BulletKind {
     CONTINUOUS,
     CONTINUOUS_SURGE,
     PIERCE,
-    BURST
+    BURST,
+    DRY_ICE,
+    HOMING_SHOT
 }

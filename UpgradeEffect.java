@@ -59,6 +59,8 @@ enum UpgradeEffect {
     CROSSFEED,
     RHYTHM_CANNON,
     FROST_FIELD,
+    DRY_ICE_BULLET,
+    HOMING_SHOTGUN,
     TEST_INVINCIBLE,
     TEST_BIG_XP
 }

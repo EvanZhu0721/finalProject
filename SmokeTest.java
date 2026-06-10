@@ -28,6 +28,7 @@ final class SmokeTest {
         if (!"1.0.1".equals(TypingLaneDemo.VERSION)) {
             throw new IllegalStateException("Smoke test failed: release version is not 1.0.1.");
         }
+        validateWordBank();
         if (Target.enemy(0, TargetKind.NORMAL).hp != GamePanel.scaleEnemyHp(4)
                 || Target.boss(0, 1).hp != GamePanel.scaleBossHp(18 + 8)) {
             throw new IllegalStateException("Smoke test failed: enemy HP multipliers are not applied.");
@@ -55,8 +56,27 @@ final class SmokeTest {
         }
 
         GamePanel gatePanel = new GamePanel(false);
+        if (GamePanel.LOGIC_FPS != 120 || Math.abs(GamePanel.TICK_MS - (1000.0 / 120.0)) > 0.001) {
+            throw new IllegalStateException("Smoke test failed: logic frame rate is not 120 FPS.");
+        }
+        if (GamePanel.WIDTH != 2560 || GamePanel.HEIGHT != 1440
+                || GamePanel.RENDER_WIDTH != 2560 || GamePanel.RENDER_HEIGHT != 1440) {
+            throw new IllegalStateException("Smoke test failed: render resolution changed the gameplay coordinate space.");
+        }
         if (gatePanel.timer.getDelay() != GamePanel.FRAME_MS) {
             throw new IllegalStateException("Smoke test failed: render timer is not running at the frame cadence.");
+        }
+        if (GamePanel.FRAME_MS != 8) {
+            throw new IllegalStateException("Smoke test failed: render timer is not running at 8 ms.");
+        }
+        if (gatePanel.getPreferredSize().width != GamePanel.DEFAULT_WINDOW_WIDTH
+                || gatePanel.getPreferredSize().height != GamePanel.DEFAULT_WINDOW_HEIGHT
+                || gatePanel.logicalFrameBuffer().getWidth() != GamePanel.RENDER_WIDTH
+                || gatePanel.logicalFrameBuffer().getHeight() != GamePanel.RENDER_HEIGHT) {
+            throw new IllegalStateException("Smoke test failed: default window size or render buffer is wrong.");
+        }
+        if (GamePanel.MIN_WINDOW_WIDTH >= GamePanel.WIDTH || GamePanel.MIN_WINDOW_HEIGHT >= GamePanel.HEIGHT) {
+            throw new IllegalStateException("Smoke test failed: minimum window size is still bound to render size.");
         }
         gatePanel.renderAlpha = 0.5;
         if (Math.abs(gatePanel.renderX(100.0, 80.0) - 90.0) > 0.001) {
@@ -65,10 +85,28 @@ final class SmokeTest {
         gatePanel.renderAlpha = 1.0;
         GamePanel frameClockPanel = new GamePanel(false);
         frameClockPanel.started = true;
-        frameClockPanel.lastFrameNanos = System.nanoTime() - 40_000_000L;
+        frameClockPanel.lastFrameNanos = System.nanoTime()
+                - (long) (GamePanel.TICK_MS * 2.25 * 1_000_000.0);
         frameClockPanel.advanceFrameClock();
-        if (frameClockPanel.tick != 1) {
+        if (frameClockPanel.tick != 2) {
             throw new IllegalStateException("Smoke test failed: frame clock did not preserve the fixed update cadence.");
+        }
+        GamePanel speedScalePanel = new GamePanel(false);
+        speedScalePanel.started = true;
+        speedScalePanel.spawnCooldown = 9999;
+        Target speedProbeTarget = Target.enemy(0, TargetKind.NORMAL);
+        double targetStartX = speedProbeTarget.x;
+        speedScalePanel.targets.add(speedProbeTarget);
+        Bullet speedProbeBullet = new Bullet(GamePanel.PLAYER_X + GamePanel.worldAmount(28), 0, 1, 1,
+                BulletKind.BASIC);
+        double bulletStartX = speedProbeBullet.x;
+        speedScalePanel.bullets.add(speedProbeBullet);
+        speedScalePanel.step();
+        double expectedTargetX = targetStartX - GamePanel.gameplayStep(speedProbeTarget.speed);
+        double expectedBulletX = bulletStartX + GamePanel.gameplayStep(speedProbeBullet.speed);
+        if (Math.abs(speedProbeTarget.x - expectedTargetX) > 0.001
+                || Math.abs(speedProbeBullet.x - expectedBulletX) > 0.001) {
+            throw new IllegalStateException("Smoke test failed: 120 FPS logic changed movement speed.");
         }
         gatePanel.started = false;
         gatePanel.laneWords[0] = "code";
@@ -91,7 +129,7 @@ final class SmokeTest {
         }
         GamePanel freshSpawnPanel = new GamePanel(false);
         GamePanel lateSpawnPanel = new GamePanel(false);
-        lateSpawnPanel.tick = 430 * 12;
+        lateSpawnPanel.tick = GamePanel.logicTicks(430 * 12);
         lateSpawnPanel.kills = 108;
         lateSpawnPanel.bossLevel = 3;
         if (lateSpawnPanel.nextSpawnCooldown() != freshSpawnPanel.nextSpawnCooldown()) {
@@ -228,7 +266,7 @@ final class SmokeTest {
             }
         }
         GamePanel highPressureWordPanel = new GamePanel(false);
-        highPressureWordPanel.tick = 430 * 12;
+        highPressureWordPanel.tick = GamePanel.logicTicks(430 * 12);
         highPressureWordPanel.kills = 108;
         highPressureWordPanel.bossLevel = 3;
         highPressureWordPanel.laneWords[0] = "code";
@@ -239,7 +277,7 @@ final class SmokeTest {
             throw new IllegalStateException("Smoke test failed: high pressure still changed lane word length.");
         }
         GamePanel highPressureSpawnPanel = new GamePanel(false);
-        highPressureSpawnPanel.tick = 430 * 12;
+        highPressureSpawnPanel.tick = GamePanel.logicTicks(430 * 12);
         highPressureSpawnPanel.kills = 108;
         highPressureSpawnPanel.bossLevel = 3;
         highPressureSpawnPanel.spawnRandomTarget();
@@ -255,12 +293,12 @@ final class SmokeTest {
         if (Math.abs(highPressureSpawnPanel.maxBulletX(rangeProbe) - GamePanel.LANE_RIGHT_X) > 0.001) {
             throw new IllegalStateException("Smoke test failed: bullet range does not cover the full lane.");
         }
-        if (rangeProbe.lifeTicks * rangeProbe.speed < GamePanel.LANE_RIGHT_X - rangeProbe.x) {
+        if (rangeProbe.lifeTicks * GamePanel.gameplayStep(rangeProbe.speed) < GamePanel.LANE_RIGHT_X - rangeProbe.x) {
             throw new IllegalStateException("Smoke test failed: bullet lifetime does not cover the full lane.");
         }
 
         Target frozen = Target.enemy(0, TargetKind.NORMAL);
-        frozen.x = GamePanel.PLAYER_X + 200;
+        frozen.x = GamePanel.PLAYER_X + GamePanel.worldAmount(200);
         gatePanel.targets.add(frozen);
         gatePanel.keyPressed(key(gatePanel, KeyEvent.VK_ESCAPE));
         int pausedTick = gatePanel.tick;
@@ -301,7 +339,7 @@ final class SmokeTest {
         highResGraphics.dispose();
 
         Target basicTarget = Target.enemy(0, TargetKind.NORMAL);
-        basicTarget.x = GamePanel.PLAYER_X + 150;
+        basicTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(150);
         panel.targets.add(basicTarget);
         panel.laneWords[0] = "code";
         panel.laneWords[1] = "loop";
@@ -338,7 +376,10 @@ final class SmokeTest {
         if (panel.completePulseTicks <= 0 || panel.completePulseLane != 0) {
             throw new IllegalStateException("Smoke test failed: completed lane word did not trigger finish feedback.");
         }
-        for (int i = 0; i < 16; i++) {
+        if (!hasBulletKind(panel, BulletKind.BASIC, false)) {
+            throw new IllegalStateException("Smoke test failed: basic bullets did not use the line trail style.");
+        }
+        for (int i = 0; i < GamePanel.logicTicks(16); i++) {
             panel.step();
         }
         if (panel.score <= 0 && panel.targets.size() > 0) {
@@ -358,7 +399,7 @@ final class SmokeTest {
         fullRangePanel.targets.add(laneEndTarget);
         int laneEndHpBefore = laneEndTarget.hp;
         typeWord(fullRangePanel, "code");
-        for (int i = 0; i < 120; i++) {
+        for (int i = 0; i < GamePanel.logicTicks(120); i++) {
             fullRangePanel.step();
         }
         if (laneEndTarget.hp >= laneEndHpBefore) {
@@ -375,10 +416,12 @@ final class SmokeTest {
         GamePanel attractPanel = new GamePanel(false);
         attractPanel.started = true;
         attractPanel.lane = 0;
-        XpOrb attractOrb = new XpOrb(GamePanel.PLAYER_X + 240, 0, 1);
+        XpOrb attractOrb = new XpOrb(GamePanel.PLAYER_X + GamePanel.worldAmount(240), 0, 1);
         attractPanel.xpOrbs.add(attractOrb);
         double attractStart = attractOrb.x;
-        attractPanel.step();
+        for (int i = 0; i < GamePanel.logicTicks(1); i++) {
+            attractPanel.step();
+        }
         if (attractOrb.x >= attractStart - 2.0) {
             throw new IllegalStateException("Smoke test failed: nearby same-lane XP ball did not attract.");
         }
@@ -388,7 +431,9 @@ final class SmokeTest {
         double switchedLaneStart = attractOrb.x;
         double switchedLaneStartY = attractOrb.y;
         attractPanel.lane = 1;
-        attractPanel.step();
+        for (int i = 0; i < GamePanel.logicTicks(1); i++) {
+            attractPanel.step();
+        }
         if (attractOrb.x >= switchedLaneStart - attractOrb.speed - 1.0) {
             throw new IllegalStateException("Smoke test failed: lane switch interrupted XP ball attraction.");
         }
@@ -398,11 +443,11 @@ final class SmokeTest {
         GamePanel farOrbPanel = new GamePanel(false);
         farOrbPanel.started = true;
         farOrbPanel.lane = 0;
-        XpOrb farOrb = new XpOrb(GamePanel.PLAYER_X + 340, 0, 1);
+        XpOrb farOrb = new XpOrb(GamePanel.PLAYER_X + GamePanel.worldAmount(340), 0, 1);
         farOrbPanel.xpOrbs.add(farOrb);
         double farStart = farOrb.x;
         farOrbPanel.step();
-        if (farOrb.x < farStart - farOrb.speed - 0.01) {
+        if (farOrb.x < farStart - GamePanel.gameplayStep(farOrb.speed) - 0.01) {
             throw new IllegalStateException("Smoke test failed: far XP ball attracted from too far away.");
         }
 
@@ -447,14 +492,14 @@ final class SmokeTest {
         panel.laneWords[0] = "code";
         panel.laneWords[1] = "java";
         Target downTarget = Target.enemy(1, TargetKind.NORMAL);
-        downTarget.x = GamePanel.PLAYER_X + 130;
+        downTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(130);
         panel.targets.add(downTarget);
         int downHpBefore = downTarget.hp;
         panel.handleLetter('j');
         panel.handleLetter('a');
         panel.handleLetter('v');
         panel.handleLetter('a');
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < GamePanel.logicTicks(12); i++) {
             panel.step();
         }
         if (panel.lane != 1 || downTarget.hp >= downHpBefore) {
@@ -468,13 +513,16 @@ final class SmokeTest {
         panel.lane = 0;
         panel.highTalents[0] = UpgradeEffect.RHYTHM_CANNON;
         Target streamTarget = Target.enemy(0, TargetKind.TANK);
-        streamTarget.x = GamePanel.PLAYER_X + 170;
+        streamTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(170);
         streamTarget.hp = 60;
         streamTarget.maxHp = 60;
         panel.targets.add(streamTarget);
         panel.step();
         if (!hasBulletKind(panel, BulletKind.CONTINUOUS)) {
             throw new IllegalStateException("Smoke test failed: autocannon did not fire without typing.");
+        }
+        if (!hasBulletKind(panel, BulletKind.CONTINUOUS, false)) {
+            throw new IllegalStateException("Smoke test failed: autocannon bullets should keep the old trail style.");
         }
         panel.laneWords[0] = "stream";
         panel.laneWords[1] = "java";
@@ -487,6 +535,9 @@ final class SmokeTest {
         if (!hasBulletKind(panel, BulletKind.CONTINUOUS_SURGE)) {
             throw new IllegalStateException("Smoke test failed: empowered autocannon did not fire surge rounds.");
         }
+        if (!hasBulletKind(panel, BulletKind.CONTINUOUS_SURGE, false)) {
+            throw new IllegalStateException("Smoke test failed: empowered autocannon bullets should keep the old trail style.");
+        }
 
         GamePanel piercePanel = new GamePanel(false);
         piercePanel.highTalents[0] = UpgradeEffect.FROST_FIELD;
@@ -494,13 +545,20 @@ final class SmokeTest {
         piercePanel.laneWords[1] = "java";
         Target first = Target.enemy(0, TargetKind.NORMAL);
         Target second = Target.enemy(0, TargetKind.NORMAL);
-        first.x = GamePanel.PLAYER_X + 150;
-        second.x = GamePanel.PLAYER_X + 230;
+        first.x = GamePanel.PLAYER_X + GamePanel.worldAmount(150);
+        second.x = GamePanel.PLAYER_X + GamePanel.worldAmount(230);
         piercePanel.targets.add(first);
         piercePanel.targets.add(second);
         typeWord(piercePanel, "loop");
         if (!hasBulletKind(piercePanel, BulletKind.PIERCE)) {
-            throw new IllegalStateException("Smoke test failed: piercing rail did not fire a pierce bullet.");
+            throw new IllegalStateException("Smoke test failed: Laser Gun did not fire a laser beam.");
+        }
+        if (hasBulletKind(piercePanel, BulletKind.BASIC)) {
+            throw new IllegalStateException("Smoke test failed: Laser Gun should replace the basic shot.");
+        }
+        Bullet laserBeam = firstBulletOfKind(piercePanel, BulletKind.PIERCE);
+        if (!laserBeam.beamResolved || laserBeam.x < GamePanel.LANE_RIGHT_X) {
+            throw new IllegalStateException("Smoke test failed: Laser Gun did not resolve as an instant beam.");
         }
         Bullet decayProbe = new Bullet(GamePanel.PLAYER_X, 0, 10, 5, BulletKind.PIERCE);
         if (piercePanel.bulletDamageForHit(decayProbe) != 10) {
@@ -510,11 +568,11 @@ final class SmokeTest {
         if (piercePanel.bulletDamageForHit(decayProbe) != 8) {
             throw new IllegalStateException("Smoke test failed: pierce damage did not decay by 20 percent.");
         }
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < GamePanel.logicTicks(14); i++) {
             piercePanel.step();
         }
         if (piercePanel.impacts.size() == 0 || first.hp >= first.maxHp || second.hp >= second.maxHp) {
-            throw new IllegalStateException("Smoke test failed: piercing rail did not hit multiple lane targets.");
+            throw new IllegalStateException("Smoke test failed: Laser Gun did not hit multiple lane targets.");
         }
         for (Bullet bullet : piercePanel.bullets) {
             if (bullet.kind != BulletKind.PIERCE && bullet.hitTargets != null) {
@@ -522,7 +580,74 @@ final class SmokeTest {
             }
         }
 
-        panel.tick = 430 * 6;
+        GamePanel homingPanel = new GamePanel(false);
+        homingPanel.highTalents[0] = UpgradeEffect.HOMING_SHOTGUN;
+        homingPanel.laneWords[0] = "code";
+        homingPanel.laneWords[1] = "loop";
+        Target homingTarget = Target.enemy(1, TargetKind.TANK);
+        homingTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(760);
+        homingTarget.hp = 999;
+        homingTarget.maxHp = 999;
+        homingPanel.targets.add(homingTarget);
+        typeWord(homingPanel, "code");
+        if (countBulletKind(homingPanel, BulletKind.HOMING_SHOT) < GamePanel.HOMING_SHOTGUN_BASE_PELLETS) {
+            throw new IllegalStateException("Smoke test failed: Homing Shotgun did not fire a large pellet fan.");
+        }
+        if (hasBulletKind(homingPanel, BulletKind.BASIC)) {
+            throw new IllegalStateException("Smoke test failed: Homing Shotgun should replace the basic shot.");
+        }
+        if (!hasBulletKind(homingPanel, BulletKind.HOMING_SHOT, true)) {
+            throw new IllegalStateException("Smoke test failed: Homing Shotgun pellets need particle trails.");
+        }
+        Bullet topFanPellet = firstBulletOfKind(homingPanel, BulletKind.HOMING_SHOT);
+        double initialVy = topFanPellet.vy;
+        for (int i = 0; i < GamePanel.logicTicks(18); i++) {
+            homingPanel.step();
+        }
+        if (initialVy >= 0.0 || topFanPellet.vy <= 0.0 || homingPanel.bulletTrailParticles.size() == 0) {
+            throw new IllegalStateException("Smoke test failed: Homing Shotgun pellets did not arm, steer, and trail.");
+        }
+
+        GamePanel dryIcePanel = new GamePanel(false);
+        dryIcePanel.highTalents[0] = UpgradeEffect.DRY_ICE_BULLET;
+        dryIcePanel.laneWords[0] = "code";
+        dryIcePanel.laneWords[1] = "loop";
+        Target dryCenter = Target.enemy(0, TargetKind.TANK);
+        Target drySide = Target.enemy(0, TargetKind.NORMAL);
+        dryCenter.x = GamePanel.PLAYER_X + GamePanel.worldAmount(145);
+        drySide.x = dryCenter.x + GamePanel.worldAmount(48);
+        dryCenter.hp = 40;
+        dryCenter.maxHp = 40;
+        drySide.hp = 20;
+        drySide.maxHp = 20;
+        dryIcePanel.targets.add(dryCenter);
+        dryIcePanel.targets.add(drySide);
+        typeWord(dryIcePanel, "code");
+        if (!hasBulletKind(dryIcePanel, BulletKind.DRY_ICE, true)) {
+            throw new IllegalStateException("Smoke test failed: Dry-Ice Bullet did not fire the icy particle-trail round.");
+        }
+        if (hasBulletKind(dryIcePanel, BulletKind.BASIC)) {
+            throw new IllegalStateException("Smoke test failed: Dry-Ice Bullet should replace the basic shot.");
+        }
+        Bullet rotatingDryIce = firstBulletOfKind(dryIcePanel, BulletKind.DRY_ICE);
+        double dryIceRotationBefore = rotatingDryIce.shapeRotation;
+        dryIcePanel.step();
+        if (rotatingDryIce.shapeRotation == dryIceRotationBefore || rotatingDryIce.shapeSpin == 0.0) {
+            throw new IllegalStateException("Smoke test failed: Dry-Ice Bullet did not rotate in flight.");
+        }
+        for (int i = 0; i < GamePanel.logicTicks(8); i++) {
+            dryIcePanel.step();
+        }
+        if (drySide.hp >= drySide.maxHp || drySide.slowTicks <= 0 || dryIcePanel.icePulses.size() == 0) {
+            throw new IllegalStateException("Smoke test failed: Dry-Ice Bullet did not splash, slow, and pulse.");
+        }
+        dryCenter.dryIceHitStreak = 2;
+        dryIcePanel.applyDryIceHit(new Bullet(dryCenter.x, 0, 2, 1, BulletKind.DRY_ICE), dryCenter, 2);
+        if (dryCenter.freezeTicks <= 0) {
+            throw new IllegalStateException("Smoke test failed: Dry-Ice Bullet did not freeze on the third same-target hit.");
+        }
+
+        panel.tick = GamePanel.logicTicks(430 * 6);
         panel.kills = 54;
         panel.bossLevel = 1;
         Target scaled = Target.enemy(0, TargetKind.TANK);
@@ -538,7 +663,7 @@ final class SmokeTest {
         panel.kills = 0;
         panel.bossLevel = 0;
         panel.scaleTarget(earlyNormal);
-        panel.tick = 430 * 8;
+        panel.tick = GamePanel.logicTicks(430 * 8);
         panel.scaleTarget(lateNormal);
         if (lateNormal.hp - earlyNormal.hp < 6) {
             throw new IllegalStateException("Smoke test failed: enemy HP did not ramp fast enough over time.");
@@ -558,6 +683,23 @@ final class SmokeTest {
         if (panel.scaledDamage(10, null) <= unscaledDamage) {
             throw new IllegalStateException("Smoke test failed: percentage damage upgrade did not scale attacks.");
         }
+        if (panel.scaledDamage(5, null) <= 5) {
+            throw new IllegalStateException("Smoke test failed: low base damage did not receive a visible damage upgrade.");
+        }
+        panel.damageBonusPercent = GamePanel.MAX_DAMAGE_BONUS_PERCENT;
+        if (panel.canOfferEffect(UpgradeEffect.CALIBRATED_DAMAGE, UpgradeRarity.COMMON)) {
+            throw new IllegalStateException("Smoke test failed: capped damage upgrade was still offerable.");
+        }
+        panel.fireRateBonusPercent = GamePanel.MAX_TRIGGER_TUNING_BONUS_PERCENT;
+        if (panel.canOfferEffect(UpgradeEffect.TRIGGER_TUNING, UpgradeRarity.COMMON)) {
+            throw new IllegalStateException("Smoke test failed: capped trigger tuning was still offerable.");
+        }
+        panel.maxHpUpgradeBonus = GamePanel.MAX_HP_UPGRADE_BONUS;
+        panel.hp = panel.maxHp;
+        if (panel.canOfferEffect(UpgradeEffect.FIELD_PATCH, UpgradeRarity.COMMON)
+                || panel.canOfferEffect(UpgradeEffect.REINFORCED_CORE, UpgradeRarity.COMMON)) {
+            throw new IllegalStateException("Smoke test failed: capped HP upgrades were still offerable.");
+        }
 
         GamePanel volleyPanel = new GamePanel(false);
         volleyPanel.fireRateBonusPercent = GamePanel.TRIGGER_TUNING_STEP_PERCENT;
@@ -576,7 +718,6 @@ final class SmokeTest {
         if (volleyPanel.singleShotPelletCount() != 3) {
             throw new IllegalStateException("Smoke test failed: trigger tuning did not add one pellet per level.");
         }
-
         panel.applyUpgradeCard(new UpgradeCard("Rhythm Cannon", "test", UpgradeRarity.HIGH,
                 UpgradeEffect.RHYTHM_CANNON));
         if (!panel.hasHighTalent(UpgradeEffect.RHYTHM_CANNON)) {
@@ -607,8 +748,8 @@ final class SmokeTest {
             grantForSmoke(burstPanel, UpgradeEffect.FINAL_LETTER_BURST);
             Target burstCenter = Target.enemy(0, TargetKind.NORMAL);
             Target burstSide = Target.enemy(0, TargetKind.NORMAL);
-            burstCenter.x = GamePanel.PLAYER_X + 140;
-            burstSide.x = burstCenter.x + 42;
+            burstCenter.x = GamePanel.PLAYER_X + GamePanel.worldAmount(140);
+            burstSide.x = burstCenter.x + GamePanel.worldAmount(42);
             burstPanel.targets.add(burstCenter);
             burstPanel.targets.add(burstSide);
             burstPanel.laneWords[0] = "code";
@@ -617,7 +758,7 @@ final class SmokeTest {
             if (!hasBulletKind(burstPanel, BulletKind.BURST)) {
                 throw new IllegalStateException("Smoke test failed: Final Letter Burst did not spawn a burst bullet.");
             }
-            for (int i = 0; i < 9; i++) {
+            for (int i = 0; i < GamePanel.logicTicks(9); i++) {
                 burstPanel.step();
             }
             if (burstSide.hp >= burstSide.maxHp) {
@@ -626,7 +767,7 @@ final class SmokeTest {
 
             GamePanel vowelPanel = new GamePanel(false);
             grantForSmoke(vowelPanel, UpgradeEffect.VOWEL_CONVERGENCE);
-            XpOrb vowelOrb = new XpOrb(GamePanel.PLAYER_X + 260, 0, 1);
+            XpOrb vowelOrb = new XpOrb(GamePanel.PLAYER_X + GamePanel.worldAmount(260), 0, 1);
             vowelPanel.xpOrbs.add(vowelOrb);
             vowelPanel.laneWords[0] = "code";
             vowelPanel.laneWords[1] = "loop";
@@ -639,7 +780,7 @@ final class SmokeTest {
             GamePanel hardPanel = new GamePanel(false);
             grantForSmoke(hardPanel, UpgradeEffect.HARD_CONSONANT_BREAK);
             Target hardBreakTarget = Target.enemy(0, TargetKind.TANK);
-            hardBreakTarget.x = GamePanel.PLAYER_X + 160;
+            hardBreakTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(160);
             hardPanel.targets.add(hardBreakTarget);
             hardPanel.laneWords[0] = "target";
             hardPanel.laneWords[1] = "code";
@@ -701,7 +842,7 @@ final class SmokeTest {
             GamePanel sameLanePanel = new GamePanel(false);
             grantForSmoke(sameLanePanel, UpgradeEffect.SAME_LANE_SUPPRESSION);
             Target sameLaneTarget = Target.enemy(0, TargetKind.TANK);
-            sameLaneTarget.x = GamePanel.PLAYER_X + 170;
+            sameLaneTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(170);
             sameLanePanel.targets.add(sameLaneTarget);
             sameLanePanel.laneWords[0] = "code";
             sameLanePanel.laneWords[1] = "loop";
@@ -764,9 +905,80 @@ final class SmokeTest {
                 throw new IllegalStateException("Smoke test failed: Backspace Counter did not fire.");
             }
 
+            GamePanel immediateResetPanel = new GamePanel(false);
+            grantForSmoke(immediateResetPanel, UpgradeEffect.ERROR_RESET);
+            immediateResetPanel.laneWords[0] = "code";
+            immediateResetPanel.laneWords[1] = "loop";
+            immediateResetPanel.handleLetter('c');
+            immediateResetPanel.handleLetter('x');
+            typeWord(immediateResetPanel, "code");
+            if (!hasBulletKind(immediateResetPanel, BulletKind.BURST)) {
+                throw new IllegalStateException("Smoke test failed: Error Reset did not fire after recompleting the same word.");
+            }
+
+            GamePanel wrongWordResetPanel = new GamePanel(false);
+            grantForSmoke(wrongWordResetPanel, UpgradeEffect.ERROR_RESET);
+            wrongWordResetPanel.laneWords[0] = "code";
+            wrongWordResetPanel.laneWords[1] = "loop";
+            wrongWordResetPanel.handleLetter('c');
+            wrongWordResetPanel.handleLetter('x');
+            typeWord(wrongWordResetPanel, "loop");
+            finishLaneSwitch(wrongWordResetPanel);
+            if (hasBulletKind(wrongWordResetPanel, BulletKind.BURST)) {
+                throw new IllegalStateException("Smoke test failed: Error Reset fired after completing a different word.");
+            }
+
+            GamePanel comboCalibratorPanel = new GamePanel(false);
+            grantForSmoke(comboCalibratorPanel, UpgradeEffect.COMBO_CALIBRATOR);
+            comboCalibratorPanel.combo = 2;
+            comboCalibratorPanel.completeLaneWord(0, "code");
+            if (comboCalibratorPanel.bullets.size() != 1 || comboCalibratorPanel.bullets.get(0).damage <= 5) {
+                throw new IllegalStateException("Smoke test failed: Combo Calibrator did not add damage at combo 3.");
+            }
+            comboCalibratorPanel.bullets.clear();
+            comboCalibratorPanel.combo = 9;
+            comboCalibratorPanel.completeLaneWord(0, "code");
+            if (comboCalibratorPanel.bullets.size() != 1 || comboCalibratorPanel.bullets.get(0).damage <= 8) {
+                throw new IllegalStateException("Smoke test failed: Combo Calibrator did not add stronger damage at combo 10.");
+            }
+            comboCalibratorPanel.bullets.clear();
+            comboCalibratorPanel.combo = 10;
+            comboCalibratorPanel.completeLaneWord(0, "code");
+            if (comboCalibratorPanel.bullets.size() != 1 || comboCalibratorPanel.bullets.get(0).damage != 6) {
+                throw new IllegalStateException("Smoke test failed: Combo Calibrator added damage outside combo 3/5/10.");
+            }
+
+            GamePanel crossfeedPanel = new GamePanel(false);
+            grantForSmoke(crossfeedPanel, UpgradeEffect.CROSSFEED);
+            crossfeedPanel.xpToNext = 999;
+            crossfeedPanel.laneWords[0] = "flow";
+            crossfeedPanel.laneWords[1] = "loop";
+            typeWord(crossfeedPanel, "flow");
+            if (crossfeedPanel.crossfeedBonusTicks <= 0) {
+                throw new IllegalStateException("Smoke test failed: Crossfeed did not prime after an f/t/k word.");
+            }
+            crossfeedPanel.addExperience(5);
+            if (crossfeedPanel.xp <= 5 || crossfeedPanel.crossfeedBonusTicks != 0) {
+                throw new IllegalStateException("Smoke test failed: Crossfeed did not boost exactly one XP pickup.");
+            }
+
+            GamePanel expiredCrossfeedPanel = new GamePanel(false);
+            grantForSmoke(expiredCrossfeedPanel, UpgradeEffect.CROSSFEED);
+            expiredCrossfeedPanel.xpToNext = 999;
+            expiredCrossfeedPanel.laneWords[0] = "flow";
+            expiredCrossfeedPanel.laneWords[1] = "loop";
+            typeWord(expiredCrossfeedPanel, "flow");
+            for (int i = 0; i < GamePanel.logicTicks(151); i++) {
+                expiredCrossfeedPanel.step();
+            }
+            expiredCrossfeedPanel.addExperience(5);
+            if (expiredCrossfeedPanel.xp != 5) {
+                throw new IllegalStateException("Smoke test failed: Crossfeed boost did not expire.");
+            }
+
             GamePanel xpPullPanel = new GamePanel(false);
             grantForSmoke(xpPullPanel, UpgradeEffect.PRECISE_PICKUP);
-            XpOrb pullOrb = new XpOrb(GamePanel.PLAYER_X + 260, 0, 1);
+            XpOrb pullOrb = new XpOrb(GamePanel.PLAYER_X + GamePanel.worldAmount(260), 0, 1);
             xpPullPanel.xpOrbs.add(pullOrb);
             xpPullPanel.laneWords[0] = "code";
             xpPullPanel.laneWords[1] = "loop";
@@ -779,7 +991,7 @@ final class SmokeTest {
             GamePanel dangerPanel = new GamePanel(false);
             grantForSmoke(dangerPanel, UpgradeEffect.DANGER_WORD);
             Target dangerTarget = Target.enemy(0, TargetKind.NORMAL);
-            dangerTarget.x = GamePanel.PLAYER_X + 230;
+            dangerTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(230);
             dangerPanel.targets.add(dangerTarget);
             dangerPanel.laneWords[0] = "code";
             dangerPanel.laneWords[1] = "loop";
@@ -792,7 +1004,7 @@ final class SmokeTest {
             GamePanel valvePanel = new GamePanel(false);
             grantForSmoke(valvePanel, UpgradeEffect.PRESSURE_VALVE);
             Target valveTarget = Target.enemy(0, TargetKind.NORMAL);
-            valveTarget.x = GamePanel.PLAYER_X + 250;
+            valveTarget.x = GamePanel.PLAYER_X + GamePanel.worldAmount(250);
             valvePanel.targets.add(valveTarget);
             valvePanel.laneWords[0] = "code";
             valvePanel.laneWords[1] = "loop";
@@ -807,29 +1019,32 @@ final class SmokeTest {
 
     static void runRenderBenchmark() {
         GamePanel panel = new GamePanel(false);
-        panel.setSize(3840, 2160);
+        panel.setSize(GamePanel.RENDER_WIDTH, GamePanel.RENDER_HEIGHT);
         panel.started = true;
         panel.highTalents[0] = UpgradeEffect.RHYTHM_CANNON;
-        panel.continuousSurgeTicks = 15;
+        panel.continuousSurgeTicks = GamePanel.logicTicks(15);
         panel.laneWords[0] = "graphics";
         panel.laneWords[1] = "keyboard";
         for (int i = 0; i < 18; i++) {
             Target target = Target.enemy(i % 2, i % 3 == 0 ? TargetKind.TANK : TargetKind.NORMAL);
-            target.x = GamePanel.PLAYER_X + 120 + i * 42;
+            target.x = GamePanel.PLAYER_X + GamePanel.worldAmount(120 + i * 42);
             panel.targets.add(target);
         }
         for (int i = 0; i < 36; i++) {
-            panel.bullets.add(new Bullet(GamePanel.PLAYER_X + 80 + i * 19, i % 2, 2, 1,
+            panel.bullets.add(new Bullet(GamePanel.PLAYER_X + GamePanel.worldAmount(80 + i * 19), i % 2, 2, 1,
                     i % 5 == 0 ? BulletKind.CONTINUOUS_SURGE : BulletKind.CONTINUOUS));
         }
         for (int i = 0; i < 12; i++) {
-            panel.impacts.add(new Impact(GamePanel.PLAYER_X + 120 + i * 60, GamePanel.LANE_Y[i % 2], 3));
+            panel.impacts.add(new Impact(GamePanel.PLAYER_X + GamePanel.worldAmount(120 + i * 60),
+                    GamePanel.LANE_Y[i % 2], 3));
         }
         for (int i = 0; i < 8; i++) {
-            panel.xpOrbs.add(new XpOrb(GamePanel.PLAYER_X + 170 + i * 70, i % 2, 1 + i % 4));
+            panel.xpOrbs.add(new XpOrb(GamePanel.PLAYER_X + GamePanel.worldAmount(170 + i * 70), i % 2,
+                    1 + i % 4));
         }
 
-        BufferedImage frame = new BufferedImage(3840, 2160, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage frame = new BufferedImage(GamePanel.RENDER_WIDTH, GamePanel.RENDER_HEIGHT,
+                BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = frame.createGraphics();
         int warmupFrames = 20;
         int measuredFrames = 120;
@@ -847,7 +1062,8 @@ final class SmokeTest {
 
         double averageMs = elapsedNanos / 1_000_000.0 / measuredFrames;
         double fps = 1000.0 / Math.max(0.01, averageMs);
-        System.out.printf("Render benchmark 3840x2160: %.2f ms/frame, %.1f FPS equivalent%n", averageMs, fps);
+        System.out.printf("Render benchmark %dx%d: %.2f ms/frame, %.1f FPS equivalent%n",
+                GamePanel.RENDER_WIDTH, GamePanel.RENDER_HEIGHT, averageMs, fps);
     }
 
     private static KeyEvent key(GamePanel panel, int keyCode) {
@@ -856,6 +1072,20 @@ final class SmokeTest {
 
     private static KeyEvent typedKey(GamePanel panel, char keyChar) {
         return new KeyEvent(panel, KeyEvent.KEY_TYPED, 0, 0, KeyEvent.VK_UNDEFINED, keyChar);
+    }
+
+    private static void validateWordBank() {
+        for (int i = 0; i < GamePanel.WORDS.length; i++) {
+            String word = GamePanel.WORDS[i];
+            if (word.length() < GamePanel.LANE_WORD_MIN_LENGTH || word.length() > GamePanel.LANE_WORD_MAX_LENGTH) {
+                throw new IllegalStateException("Smoke test failed: word length is outside lane constraints: " + word);
+            }
+            for (int j = i + 1; j < GamePanel.WORDS.length; j++) {
+                if (word.equals(GamePanel.WORDS[j])) {
+                    throw new IllegalStateException("Smoke test failed: duplicate word in bank: " + word);
+                }
+            }
+        }
     }
 
     private static void selectTestEffect(GamePanel panel, UpgradeEffect effect) {
@@ -904,4 +1134,33 @@ final class SmokeTest {
         return false;
     }
 
+    private static boolean hasBulletKind(GamePanel panel, BulletKind kind, boolean particleTrail) {
+        for (Bullet bullet : panel.bullets) {
+            if (bullet.kind == kind && bullet.particleTrail == particleTrail) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countBulletKind(GamePanel panel, BulletKind kind) {
+        int count = 0;
+        for (Bullet bullet : panel.bullets) {
+            if (bullet.kind == kind) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static Bullet firstBulletOfKind(GamePanel panel, BulletKind kind) {
+        for (Bullet bullet : panel.bullets) {
+            if (bullet.kind == kind) {
+                return bullet;
+            }
+        }
+        throw new IllegalStateException("Smoke test failed: expected bullet kind was missing: " + kind);
+    }
+
 }
+

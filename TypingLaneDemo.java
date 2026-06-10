@@ -43,7 +43,7 @@ public class TypingLaneDemo {
                 frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                 frame.setContentPane(panel);
                 frame.pack();
-                frame.setMinimumSize(new Dimension(GamePanel.WIDTH, GamePanel.HEIGHT));
+                frame.setMinimumSize(new Dimension(GamePanel.MIN_WINDOW_WIDTH, GamePanel.MIN_WINDOW_HEIGHT));
                 frame.setResizable(true);
                 frame.setLocationRelativeTo(null);
                 if (launchFullscreen) {

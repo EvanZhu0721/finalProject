@@ -36,6 +36,8 @@ final class Target {
     int hitFlash;
     int phaseTick;
     int slowTicks;
+    int freezeTicks;
+    int dryIceHitStreak;
     int markTicks;
 
     private Target(int lane, TargetKind kind, int hp, double speed) {

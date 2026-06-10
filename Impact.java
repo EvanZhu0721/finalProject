@@ -27,11 +27,23 @@ final class Impact {
     final double x;
     final double y;
     final int damage;
-    int ticks = 14;
+    final Color damageColor;
+    final double driftX;
+    final double popHeight;
+    final int maxTicks = GamePanel.logicTicks(34);
+    int ticks = maxTicks;
 
     Impact(double x, double y, int damage) {
+        this(x, y, damage, GamePanel.COLOR_IMPACT_CORE);
+    }
+
+    Impact(double x, double y, int damage, Color damageColor) {
         this.x = x;
         this.y = y;
         this.damage = damage;
+        this.damageColor = damageColor;
+        int seed = (int) Math.round(x * 13.0 + y * 7.0 + damage * 31.0);
+        this.driftX = GamePanel.worldAmount(((seed & 7) - 3.5) * 2.4);
+        this.popHeight = GamePanel.worldAmount(38.0 + ((seed >>> 3) & 7) * 2.5);
     }
 }

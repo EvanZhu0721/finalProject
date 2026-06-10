@@ -25,20 +25,36 @@ import javax.swing.Timer;
 
 @SuppressWarnings("serial")
 final class GamePanel extends JPanel implements ActionListener, KeyListener {
-    static final int WIDTH = 1920;
-    static final int HEIGHT = 1080;
-    static final int PLAYER_X = 95;
-    static final int LANE_LEFT_X = 55;
-    static final int LANE_RIGHT_X = WIDTH - 55;
-    static final int[] LANE_Y = {230, 410};
-    static final int TICK_MS = 33;
-    static final int FRAME_MS = 16;
+    static final int BASE_WIDTH = 1920;
+    static final int BASE_HEIGHT = 1080;
+    static final int WIDTH = 2560;
+    static final int HEIGHT = 1440;
+    static final int RENDER_WIDTH = WIDTH;
+    static final int RENDER_HEIGHT = HEIGHT;
+    static final int DEFAULT_WINDOW_WIDTH = 1600;
+    static final int DEFAULT_WINDOW_HEIGHT = 900;
+    static final int MIN_WINDOW_WIDTH = 960;
+    static final int MIN_WINDOW_HEIGHT = 540;
+    static final double COORD_SCALE_X = WIDTH / (double) BASE_WIDTH;
+    static final double COORD_SCALE_Y = HEIGHT / (double) BASE_HEIGHT;
+    static final double COORD_SCALE = COORD_SCALE_X;
+    static final double RENDER_SCALE_X = RENDER_WIDTH / (double) WIDTH;
+    static final double RENDER_SCALE_Y = RENDER_HEIGHT / (double) HEIGHT;
+    static final int PLAYER_X = sx(95);
+    static final int LANE_LEFT_X = sx(55);
+    static final int LANE_RIGHT_X = WIDTH - sx(55);
+    static final int[] LANE_Y = {sy(230), sy(410)};
+    static final int LOGIC_FPS = 120;
+    static final double TICK_MS = 1000.0 / LOGIC_FPS;
+    static final double LEGACY_TICK_MS = 33.0;
+    static final double GAMEPLAY_STEP_SCALE = TICK_MS / LEGACY_TICK_MS;
+    static final int FRAME_MS = 8;
     static final boolean ENABLE_GROUP_ONE_UPGRADES = true;
     static final boolean ENABLE_GROUP_TWO_TO_FIVE_UPGRADES = true;
     static final int LANE_WORD_MIN_LENGTH = 4;
     static final int LANE_WORD_MAX_LENGTH = 7;
-    static final int BASE_SPAWN_COOLDOWN = 100;
-    static final int SPAWN_COOLDOWN_JITTER = 15;
+    static final int BASE_SPAWN_COOLDOWN = logicTicks(100);
+    static final int SPAWN_COOLDOWN_JITTER = logicTicks(15);
     static final int[] EARLY_XP_REQUIREMENTS = {6, 8, 12, 16, 22};
     static final int INITIAL_XP_TO_NEXT = EARLY_XP_REQUIREMENTS[0];
     static final int BOSS_XP_BASE = 24;
@@ -50,51 +66,59 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     static final int TRIGGER_TUNING_STEP_PERCENT = 20;
     static final int MAX_TRIGGER_TUNING_BONUS_PERCENT = 100;
     static final int MAX_HP_UPGRADE_BONUS = 36;
-    static final int AUTO_CANNON_SURGE_TICKS = 150;
+    static final int AUTO_CANNON_SURGE_TICKS = logicTicks(150);
     static final int PIERCING_DECAY_PERCENT = 20;
-    static final int PHASE_SWITCH_TICKS = 11;
-    static final int PHASE_SWITCH_BASE_COOLDOWN = 240;
-    static final int PHASE_SWITCH_COOLDOWN_STEP = 38;
-    static final int PHASE_SWITCH_MIN_COOLDOWN = 105;
-    static final int XP_ATTRACT_RADIUS = 288;
-    static final int XP_COLLECT_RADIUS = 34;
+    static final int HOMING_SHOTGUN_BASE_PELLETS = 15;
+    static final double HOMING_SHOTGUN_FAN_RADIANS = Math.toRadians(40.0);
+    static final double HOMING_ARM_DISTANCE = worldAmount(190.0);
+    static final double HOMING_STEER = 0.18;
+    static final int PHASE_SWITCH_TICKS = logicTicks(11);
+    static final int PHASE_SWITCH_BASE_COOLDOWN = logicTicks(240);
+    static final int PHASE_SWITCH_COOLDOWN_STEP = logicTicks(38);
+    static final int PHASE_SWITCH_MIN_COOLDOWN = logicTicks(105);
+    static final int XP_ATTRACT_RADIUS = sx(288);
+    static final int XP_COLLECT_RADIUS = sx(34);
     static final int TEST_BACKEND_PAGE_SIZE = 11;
     static final int TEST_BIG_XP_AMOUNT = 500;
-    static final int WORD_COMPLETE_PULSE_TICKS = 22;
-    static final int LANE_SWITCH_ANIMATION_TICKS = 6;
-    static final Font FONT_TARGET_TITLE = new Font("Consolas", Font.BOLD, 18);
-    static final Font FONT_TARGET_HP = new Font("Consolas", Font.PLAIN, 13);
-    static final Font FONT_ORB = new Font("Consolas", Font.BOLD, 12);
-    static final Font FONT_IMPACT = new Font("Consolas", Font.BOLD, 13);
-    static final Font FONT_HUD = new Font("Consolas", Font.PLAIN, 16);
-    static final Font FONT_PRESSURE = new Font("Consolas", Font.BOLD, 14);
-    static final Font FONT_LANE_LABEL = new Font("Consolas", Font.BOLD, 15);
-    static final Font FONT_LANE_WORD = new Font("Consolas", Font.BOLD, 46);
-    static final Font FONT_OVERLAY_TITLE = new Font("Consolas", Font.BOLD, 34);
-    static final Font FONT_CHOICE_TITLE = new Font("Consolas", Font.BOLD, 30);
-    static final Font FONT_OVERLAY_BODY = new Font("Consolas", Font.PLAIN, 20);
-    static final Font FONT_START_BUTTON = new Font("Consolas", Font.BOLD, 22);
-    static final Font FONT_HUD_ZH = new Font("Microsoft YaHei UI", Font.PLAIN, 16);
-    static final Font FONT_PRESSURE_ZH = new Font("Microsoft YaHei UI", Font.BOLD, 14);
-    static final Font FONT_LANE_LABEL_ZH = new Font("Microsoft YaHei UI", Font.BOLD, 15);
-    static final Font FONT_OVERLAY_TITLE_ZH = new Font("Microsoft YaHei UI", Font.BOLD, 34);
-    static final Font FONT_CHOICE_TITLE_ZH = new Font("Microsoft YaHei UI", Font.BOLD, 30);
-    static final Font FONT_OVERLAY_BODY_ZH = new Font("Microsoft YaHei UI", Font.PLAIN, 20);
-    static final Font FONT_START_BUTTON_ZH = new Font("Microsoft YaHei UI", Font.BOLD, 22);
-    static final BasicStroke STROKE_LANE = new BasicStroke(4);
-    static final BasicStroke STROKE_CARD_ACTIVE = new BasicStroke(3);
-    static final BasicStroke STROKE_CARD_IDLE = new BasicStroke(2);
+    static final int WORD_COMPLETE_PULSE_TICKS = logicTicks(22);
+    static final int LANE_SWITCH_ANIMATION_TICKS = logicTicks(6);
+    static final Font FONT_TARGET_TITLE = font("Consolas", Font.BOLD, 18);
+    static final Font FONT_TARGET_HP = font("Consolas", Font.PLAIN, 13);
+    static final Font FONT_ORB = font("Consolas", Font.BOLD, 12);
+    static final Font FONT_IMPACT = font("Consolas", Font.BOLD, 13);
+    static final Font FONT_DAMAGE_POP = font("Comic Sans MS", Font.BOLD, 42);
+    static final Font FONT_HUD = font("Consolas", Font.PLAIN, 16);
+    static final Font FONT_PRESSURE = font("Consolas", Font.BOLD, 14);
+    static final Font FONT_LANE_LABEL = font("Consolas", Font.BOLD, 15);
+    static final Font FONT_LANE_WORD = font("Consolas", Font.BOLD, 46);
+    static final Font FONT_OVERLAY_TITLE = font("Consolas", Font.BOLD, 34);
+    static final Font FONT_CHOICE_TITLE = font("Consolas", Font.BOLD, 30);
+    static final Font FONT_OVERLAY_BODY = font("Consolas", Font.PLAIN, 20);
+    static final Font FONT_START_BUTTON = font("Consolas", Font.BOLD, 22);
+    static final Font FONT_HUD_ZH = font("Microsoft YaHei UI", Font.PLAIN, 16);
+    static final Font FONT_PRESSURE_ZH = font("Microsoft YaHei UI", Font.BOLD, 14);
+    static final Font FONT_LANE_LABEL_ZH = font("Microsoft YaHei UI", Font.BOLD, 15);
+    static final Font FONT_OVERLAY_TITLE_ZH = font("Microsoft YaHei UI", Font.BOLD, 34);
+    static final Font FONT_CHOICE_TITLE_ZH = font("Microsoft YaHei UI", Font.BOLD, 30);
+    static final Font FONT_OVERLAY_BODY_ZH = font("Microsoft YaHei UI", Font.PLAIN, 20);
+    static final Font FONT_START_BUTTON_ZH = font("Microsoft YaHei UI", Font.BOLD, 22);
+    static final BasicStroke STROKE_LANE = stroke(4);
+    static final BasicStroke STROKE_CARD_ACTIVE = stroke(3);
+    static final BasicStroke STROKE_CARD_IDLE = stroke(2);
     static final BasicStroke STROKE_WORD_COMPLETE_AURA =
-            new BasicStroke(11, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+            stroke(11, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
     static final BasicStroke STROKE_WORD_COMPLETE_CORE =
-            new BasicStroke(5, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_PIERCE_AURA = new BasicStroke(13, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_PIERCE_CORE = new BasicStroke(6, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_SURGE_AURA = new BasicStroke(8, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_SURGE_CORE = new BasicStroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_CONTINUOUS = new BasicStroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_BASIC = new BasicStroke(7, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-    static final BasicStroke STROKE_IMPACT = new BasicStroke(3);
+            stroke(5, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_PIERCE_AURA = stroke(13, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_PIERCE_CORE = stroke(6, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_LASER_AURA = stroke(20, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_LASER_CORE = stroke(8, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_LASER_HOT = stroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_SURGE_AURA = stroke(8, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_SURGE_CORE = stroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_CONTINUOUS = stroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_BASIC = stroke(7, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+    static final BasicStroke STROKE_IMPACT = stroke(3);
     static final Color COLOR_BACKGROUND = new Color(21, 24, 30);
     static final Color COLOR_PANEL_DARK = new Color(12, 15, 22, 232);
     static final Color COLOR_INK_DARK = new Color(12, 14, 18);
@@ -107,6 +131,13 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     static final Color COLOR_PIERCE_AURA = new Color(70, 225, 255, 65);
     static final Color COLOR_PIERCE_CORE = new Color(115, 245, 255, 190);
     static final Color COLOR_PIERCE_HEAD = new Color(45, 215, 255);
+    static final Color COLOR_LASER_AURA = new Color(255, 25, 50, 95);
+    static final Color COLOR_LASER_CORE = new Color(255, 72, 78, 220);
+    static final Color COLOR_LASER_HOT = new Color(255, 225, 205, 245);
+    static final Color COLOR_LASER_SPARK = new Color(255, 96, 70, 185);
+    static final Color COLOR_HOMING_TRAIL = new Color(255, 125, 218, 82);
+    static final Color COLOR_HOMING_HEAD = new Color(255, 106, 212);
+    static final Color COLOR_HOMING_CORE = new Color(255, 232, 255);
     static final Color COLOR_SURGE_AURA = new Color(255, 236, 95, 135);
     static final Color COLOR_SURGE_CORE = new Color(130, 255, 180, 210);
     static final Color COLOR_SURGE_GLOW = new Color(255, 220, 72, 90);
@@ -117,6 +148,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     static final Color COLOR_CONTINUOUS_HEAD = new Color(75, 235, 130);
     static final Color COLOR_BASIC_TRAIL = new Color(120, 170, 255, 120);
     static final Color COLOR_BASIC_HEAD = new Color(130, 175, 255);
+    static final Color COLOR_DRY_ICE_TRAIL = new Color(162, 232, 255, 135);
+    static final Color COLOR_DRY_ICE_HEAD = new Color(194, 246, 255);
+    static final Color COLOR_DRY_ICE_CORE = new Color(94, 206, 255, 185);
+    static final Color COLOR_DRY_ICE_PULSE = new Color(154, 228, 255);
     static final Color COLOR_LANE_ACTIVE = new Color(85, 180, 230);
     static final Color COLOR_LANE_IDLE = new Color(70, 76, 88);
     static final Color COLOR_LANE_FILL = new Color(43, 48, 58);
@@ -164,38 +199,54 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     static final Color COLOR_UPGRADE_READY_GLOW = new Color(255, 218, 86, 82);
     static final String[] WORDS = {
             "code", "loop", "array", "class", "method", "object", "static", "return",
-            "debug", "public", "private", "string", "random", "switch", "combo",
-            "vector", "target", "health", "typing", "battle", "upgrade", "thread",
-            "focus", "runner", "syntax", "compile", "java", "panel", "timer",
-            "stack", "queue", "index", "value", "field", "token", "input",
-            "output", "screen", "sprite", "bullet", "damage", "shield", "energy",
-            "charge", "stream", "strike", "rocket", "signal", "system", "branch",
-            "buffer", "cursor", "update", "render", "canvas", "engine", "player",
-            "enemy", "motion", "target", "pickup", "attack", "defend", "survive",
-            "pressure", "perfect", "control", "pattern", "through", "forward",
-            "scanner", "boolean", "integer", "double", "extends", "compare",
-            "contains", "iterator", "graphics", "keyboard", "collision", "velocity",
-            "function", "variable", "constant", "instance", "priority", "override",
-            "lambda", "module", "import", "export", "server", "client", "socket",
-            "packet", "router", "cache", "query", "schema", "filter", "search",
-            "sorter", "merge", "commit", "branch", "origin", "remote", "deploy",
-            "script", "layout", "margin", "border", "button", "dialog", "slider",
-            "toggle", "option", "select", "canvas", "bitmap", "shader", "matrix",
-            "vertex", "camera", "sample", "packet", "parser", "format", "memory",
-            "thread", "mutex", "atomic", "future", "worker", "signal", "socket",
-            "buffer", "stream", "reader", "writer", "logger", "metric", "trace",
-            "event", "action", "state", "store", "reduce", "effect", "render",
-            "update", "layout", "widget", "window", "dialog", "cursor", "prompt",
-            "vector", "scalar", "normal", "binary", "linear", "search", "bucket",
-            "record", "entity", "model", "domain", "policy", "access", "secret",
-            "token", "cipher", "hash", "salt", "nonce", "verify", "encode",
-            "decode", "upload", "backup", "restore", "mirror", "queue", "retry"
+            "debug", "public", "private", "string", "random", "switch", "combo", "vector",
+            "target", "health", "typing", "battle", "upgrade", "thread", "focus", "runner",
+            "syntax", "compile", "java", "panel", "timer", "stack", "queue", "index",
+            "value", "field", "token", "input", "output", "screen", "sprite", "bullet",
+            "damage", "shield", "energy", "charge", "stream", "strike", "rocket", "signal",
+            "system", "branch", "buffer", "cursor", "update", "render", "canvas", "engine",
+            "player", "enemy", "motion", "pickup", "attack", "defend", "survive", "perfect",
+            "control", "pattern", "through", "forward", "scanner", "boolean", "integer", "double",
+            "extends", "compare", "lambda", "module", "import", "export", "server", "client",
+            "socket", "packet", "router", "cache", "query", "schema", "filter", "search",
+            "sorter", "merge", "commit", "origin", "remote", "deploy", "script", "layout",
+            "margin", "border", "button", "dialog", "slider", "toggle", "option", "select",
+            "bitmap", "shader", "matrix", "vertex", "camera", "sample", "parser", "format",
+            "memory", "mutex", "atomic", "future", "worker", "reader", "writer", "logger",
+            "metric", "trace", "event", "action", "state", "store", "reduce", "effect",
+            "widget", "window", "prompt", "scalar", "normal", "binary", "linear", "bucket",
+            "record", "entity", "model", "domain", "policy", "access", "secret", "cipher",
+            "hash", "salt", "nonce", "verify", "encode", "decode", "upload", "backup",
+            "restore", "mirror", "retry", "agent", "align", "alloc", "angle", "armor",
+            "asset", "async", "audio", "batch", "beacon", "block", "bound", "bounds",
+            "build", "caller", "chain", "chart", "check", "chunk", "circle", "claim",
+            "clean", "clone", "cloud", "codec", "color", "column", "config", "cookie",
+            "copper", "craft", "create", "daemon", "delta", "depth", "direct", "docker",
+            "driver", "editor", "error", "escape", "factor", "fetch", "fiber", "frame",
+            "freeze", "fusion", "gauge", "global", "graph", "guard", "handle", "header",
+            "helper", "hidden", "hook", "hover", "icon", "image", "insert", "intent",
+            "kernel", "launch", "layer", "ledger", "light", "limit", "loader", "local",
+            "logic", "macro", "marker", "master", "match", "media", "mobile", "modal",
+            "mouse", "native", "network", "node", "notify", "number", "page", "paint",
+            "parent", "patch", "pause", "pixel", "plugin", "portal", "preset", "probe",
+            "profile", "proxy", "pulse", "raster", "region", "resize", "result", "rotate",
+            "route", "runtime", "scope", "scroll", "secure", "sensor", "shadow", "shape",
+            "shared", "shell", "shift", "short", "solver", "source", "space", "stage",
+            "status", "storage", "stride", "submit", "symbol", "table", "task", "theme",
+            "ticker", "tile", "track", "tree", "tunnel", "unit", "unlock", "valid",
+            "vision", "voice", "wallet", "watch", "world", "yield", "anchor", "arena",
+            "basic", "blend", "boost", "break", "bridge", "bright", "broker", "cancel",
+            "catch", "center", "choice", "clamp", "clock", "close", "compact", "credit",
+            "danger", "detail", "device", "effort", "extend", "flight", "follow", "inject",
+            "inside", "leader", "legend", "listen", "market", "repair", "strict"
     };
 
     final Random random = new Random(7);
     final List<Target> targets = new ArrayList<Target>();
     final List<Bullet> bullets = new ArrayList<Bullet>();
+    final List<BulletTrailParticle> bulletTrailParticles = new ArrayList<BulletTrailParticle>();
     final List<Impact> impacts = new ArrayList<Impact>();
+    final List<IcePulse> icePulses = new ArrayList<IcePulse>();
     final List<BreakParticle> breakParticles = new ArrayList<BreakParticle>();
     final List<XpOrb> xpOrbs = new ArrayList<XpOrb>();
     final Timer timer;
@@ -217,7 +268,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     int combo = 0;
     int bestCombo = 0;
     int tick = 0;
-    int spawnCooldown = 25;
+    int spawnCooldown = logicTicks(25);
     int bossCooldownKills = 10;
     int autoFireCooldown = 0;
     int continuousSurgeTicks = 0;
@@ -226,9 +277,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     int inputPulseTicks = 0;
     int completePulseTicks = 0;
     int completePulseLane = -1;
-    int messageTicks = 220;
+    int messageTicks = logicTicks(220);
     int baseDamage = 5;
-    int bossDamageBonus = 0;
     int perfectBonus = 0;
     int correctTypedChars = 0;
     int runStartTick = 0;
@@ -246,6 +296,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     int bossBreakerLevel = 0;
     int crossfeedLevel = 0;
     int crossfeedCooldownTicks = 0;
+    int crossfeedBonusTicks = 0;
     int longWordRewardLevel = 0;
     int shortWordQuickshotLevel = 0;
     int finalLetterBurstLevel = 0;
@@ -267,6 +318,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     int recentErrorTicks = 0;
     int longFocusTicks = 0;
     int calmGuardCharges = 0;
+    String errorResetRecoveryWord = "";
     int lastCompletedLane = -1;
     int sameLaneStreak = 0;
     int alternatingLaneStreak = 0;
@@ -276,6 +328,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     boolean nextWordStartsAfterError = false;
     boolean currentWordUsedBackspace = false;
     boolean currentWordStartedAfterError = false;
+    boolean currentWordMatchesErrorReset = false;
     boolean currentWordUniqueFirst = false;
     boolean currentWordCleanPrefix3 = false;
     boolean currentWordReachedHalfPrefix = false;
@@ -283,6 +336,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     boolean completedWordWasClean = false;
     boolean completedWordUsedBackspace = false;
     boolean completedWordStartedAfterError = false;
+    boolean completedWordMatchesErrorReset = false;
     boolean completedWordUniqueFirst = false;
     boolean completedWordCleanPrefix3 = false;
     boolean completedWordReachedHalfPrefix = false;
@@ -311,7 +365,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     GamePanel(boolean startTimer) {
         this.smokeMode = !startTimer;
         started = smokeMode;
-        setPreferredSize(new Dimension(WIDTH, HEIGHT));
+        setPreferredSize(new Dimension(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
         setBackground(COLOR_BACKGROUND);
         setFocusable(true);
         enableInputMethods(false);
@@ -367,6 +421,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         completePulseTicks = Math.max(0, completePulseTicks - 1);
         messageTicks = Math.max(0, messageTicks - 1);
         recentErrorTicks = Math.max(0, recentErrorTicks - 1);
+        if (recentErrorTicks == 0) {
+            nextWordStartsAfterError = false;
+            errorResetRecoveryWord = "";
+        }
         longFocusTicks = Math.max(0, longFocusTicks - 1);
         laneSwitchAnimationTicks = Math.max(0, laneSwitchAnimationTicks - 1);
         if (pendingLaneAttack && laneSwitchAnimationTicks <= 0) {
@@ -384,15 +442,18 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         for (Target target : targets) {
             target.previousX = target.x;
             double speed = target.speed * laneSpeedMultiplier(target.lane);
-            if (target.slowTicks > 0) {
+            if (target.freezeTicks > 0) {
+                speed = 0.0;
+                target.freezeTicks--;
+            } else if (target.slowTicks > 0) {
                 speed *= 0.55;
                 target.slowTicks--;
             }
             target.markTicks = Math.max(0, target.markTicks - 1);
-            target.x -= speed;
+            target.x -= gameplayStep(speed);
             if (target.kind == TargetKind.BOSS) {
                 target.phaseTick++;
-                if (target.phaseTick % 150 == 0) {
+                if (target.phaseTick % logicTicks(150) == 0) {
                     target.lane = 1 - target.lane;
                     showMessage("Boss forced a lane change. Decide: chase it or clear your lane.",
                             "Boss 强制换路。追击，还是先清当前 lane？");
@@ -404,8 +465,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             runAutoFire();
         }
 
+        updateBulletTrailParticles();
         updateBullets();
         updateImpacts();
+        updateIcePulses();
         updateBreakParticles();
         updateXpOrbs();
         handleCollisions();
@@ -413,6 +476,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         phaseSwitchTicks = Math.max(0, phaseSwitchTicks - 1);
         phaseSwitchCooldownTicks = Math.max(0, phaseSwitchCooldownTicks - 1);
         crossfeedCooldownTicks = Math.max(0, crossfeedCooldownTicks - 1);
+        crossfeedBonusTicks = Math.max(0, crossfeedBonusTicks - 1);
 
         if (kills >= bossCooldownKills && !hasBoss()) {
             spawnBoss();
@@ -454,7 +518,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     int pressureLevel() {
-        return Math.min(14, tick / 430 + kills / 9 + bossLevel * 2);
+        return Math.min(14, tick / logicTicks(430) + kills / 9 + bossLevel * 2);
     }
 
     int nextSpawnCooldown() {
@@ -487,7 +551,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     int timeHpPressure() {
-        return tick / 300;
+        return tick / logicTicks(300);
     }
 
     static int scaleEnemyHp(int hp) {
@@ -513,8 +577,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             boolean surge = continuousSurgeTicks > 0;
             int damage = surge ? continuousSurgeDamage() : continuousChipDamage();
             damage = scaledDamage(damage, target);
-            fireBullet(lane, damage, 1, surge ? BulletKind.CONTINUOUS_SURGE : BulletKind.CONTINUOUS);
-            autoFireCooldown = surge ? 2 : 8;
+            fireBullet(lane, damage, 1, surge ? BulletKind.CONTINUOUS_SURGE : BulletKind.CONTINUOUS, 0, false);
+            autoFireCooldown = surge ? logicTicks(2) : logicTicks(8);
         }
     }
 
@@ -531,35 +595,297 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         while (iterator.hasNext()) {
             Bullet bullet = iterator.next();
             bullet.previousX = bullet.x;
+            bullet.previousY = bullet.y;
+            if (bullet.kind == BulletKind.PIERCE) {
+                if (!bullet.beamResolved) {
+                    bullet.x = maxBulletX(bullet);
+                    bullet.y = LANE_Y[bullet.lane];
+                    resolveLaserBeam(bullet);
+                    spawnLaserBeamParticles(bullet);
+                    bullet.beamResolved = true;
+                }
+                bullet.lifeTicks--;
+                if (bullet.lifeTicks <= 0) {
+                    iterator.remove();
+                }
+                continue;
+            }
+
             double maxX = maxBulletX(bullet);
-            bullet.x = Math.min(bullet.x + bullet.speed, maxX);
+            if (bullet.kind == BulletKind.HOMING_SHOT) {
+                updateHomingShot(bullet);
+            } else {
+                bullet.x = Math.min(bullet.x + gameplayStep(bullet.speed), maxX);
+                bullet.y = LANE_Y[bullet.lane];
+            }
+            if (bullet.kind == BulletKind.DRY_ICE) {
+                bullet.shapeRotation += bullet.shapeSpin * GAMEPLAY_STEP_SCALE;
+            }
             bullet.lifeTicks--;
+            if (bullet.particleTrail && bullet.kind != BulletKind.BASIC) {
+                spawnBulletTrailParticles(bullet);
+            }
 
             for (Target target : targets) {
-                if (bullet.pierceLeft <= 0 || target.dead || target.hp <= 0 || target.lane != bullet.lane) {
+                if (bullet.pierceLeft <= 0 || target.dead || target.hp <= 0
+                        || (bullet.kind != BulletKind.HOMING_SHOT && target.lane != bullet.lane)) {
                     continue;
                 }
                 if (bulletAlreadyHit(bullet, target)) {
                     continue;
                 }
                 if (bulletHitsTarget(bullet, target)) {
-                    int dealt = bulletDamageForHit(bullet);
-                    target.hp -= dealt;
-                    target.hitFlash = 10;
-                    rememberBulletHit(bullet, target);
-                    bullet.hits++;
-                    bullet.pierceLeft--;
-                    impacts.add(new Impact(target.x, LANE_Y[target.lane], dealt));
-                    if (bullet.kind == BulletKind.BURST) {
-                        applyBurstSplash(bullet, target, dealt);
-                    }
+                    applyBulletHit(bullet, target);
                 }
             }
 
-            if (bullet.x >= maxX || bullet.lifeTicks <= 0 || bullet.pierceLeft <= 0) {
+            if (bullet.x >= maxX || bullet.y < -worldAmount(80) || bullet.y > HEIGHT + worldAmount(80)
+                    || bullet.lifeTicks <= 0 || bullet.pierceLeft <= 0) {
                 iterator.remove();
             }
         }
+    }
+
+    void updateHomingShot(Bullet bullet) {
+        double traveled = Math.hypot(bullet.x - bullet.launchX, bullet.y - bullet.launchY);
+        if (traveled >= HOMING_ARM_DISTANCE) {
+            Target target = nearestTargetForHoming(bullet);
+            if (target != null) {
+                double dx = target.x - bullet.x;
+                double dy = LANE_Y[target.lane] - bullet.y;
+                double distance = Math.max(0.001, Math.hypot(dx, dy));
+                double desiredVx = dx / distance * bullet.speed;
+                double desiredVy = dy / distance * bullet.speed;
+                bullet.vx += (desiredVx - bullet.vx) * HOMING_STEER;
+                bullet.vy += (desiredVy - bullet.vy) * HOMING_STEER;
+                double currentSpeed = Math.max(0.001, Math.hypot(bullet.vx, bullet.vy));
+                bullet.vx = bullet.vx / currentSpeed * bullet.speed;
+                bullet.vy = bullet.vy / currentSpeed * bullet.speed;
+            }
+        }
+        bullet.x += gameplayStep(bullet.vx);
+        bullet.y += gameplayStep(bullet.vy);
+    }
+
+    Target nearestTargetForHoming(Bullet bullet) {
+        Target best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (Target target : targets) {
+            if (target.dead || target.hp <= 0 || target.x < PLAYER_X - worldAmount(30)) {
+                continue;
+            }
+            double dx = target.x - bullet.x;
+            double dy = LANE_Y[target.lane] - bullet.y;
+            double distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = target;
+            }
+        }
+        return best;
+    }
+
+    void resolveLaserBeam(Bullet bullet) {
+        bullet.previousX = PLAYER_X + worldAmount(28);
+        bullet.x = maxBulletX(bullet);
+        bullet.y = LANE_Y[bullet.lane];
+        bullet.previousY = bullet.y;
+        while (bullet.pierceLeft > 0) {
+            Target next = null;
+            double nextX = Double.MAX_VALUE;
+            for (Target target : targets) {
+                if (target.dead || target.hp <= 0 || target.lane != bullet.lane
+                        || bulletAlreadyHit(bullet, target) || !bulletHitsTarget(bullet, target)) {
+                    continue;
+                }
+                if (target.x < nextX) {
+                    nextX = target.x;
+                    next = target;
+                }
+            }
+            if (next == null) {
+                return;
+            }
+            applyBulletHit(bullet, next);
+        }
+    }
+
+    void applyBulletHit(Bullet bullet, Target target) {
+        int dealt = bulletDamageForHit(bullet);
+        target.hp -= dealt;
+        target.hitFlash = logicTicks(10);
+        rememberBulletHit(bullet, target);
+        bullet.hits++;
+        bullet.pierceLeft--;
+        impacts.add(new Impact(target.x, LANE_Y[target.lane], dealt, damageTextColorFor(bullet.kind)));
+        if (bullet.kind == BulletKind.BURST) {
+            applyBurstSplash(bullet, target, dealt);
+        } else if (bullet.kind == BulletKind.DRY_ICE) {
+            applyDryIceHit(bullet, target, dealt);
+        }
+    }
+
+    void updateIcePulses() {
+        Iterator<IcePulse> iterator = icePulses.iterator();
+        while (iterator.hasNext()) {
+            IcePulse pulse = iterator.next();
+            pulse.ticks--;
+            if (pulse.ticks <= 0) {
+                iterator.remove();
+            }
+        }
+    }
+
+    void updateBulletTrailParticles() {
+        Iterator<BulletTrailParticle> iterator = bulletTrailParticles.iterator();
+        while (iterator.hasNext()) {
+            BulletTrailParticle particle = iterator.next();
+            particle.step();
+            if (particle.life <= 0) {
+                iterator.remove();
+            }
+        }
+    }
+
+    void spawnBulletTrailParticles(Bullet bullet) {
+        double dx = bullet.x - bullet.previousX;
+        double dy = bullet.y - bullet.previousY;
+        double distance = Math.max(0.0, Math.hypot(dx, dy));
+        int count = Math.max(2, Math.min(8, (int) Math.ceil(distance / 5.0)));
+        if (bullet.kind == BulletKind.DRY_ICE) {
+            count = Math.max(3, count);
+        } else if (bullet.kind == BulletKind.HOMING_SHOT) {
+            count = Math.max(1, Math.min(5, count));
+        }
+        Color color = trailColorFor(bullet.kind);
+        for (int i = 0; i < count; i++) {
+            double t = (i + random.nextDouble()) / count;
+            double x = bullet.previousX + dx * t;
+            double baseY = bullet.previousY + dy * t;
+            double spread = bullet.kind == BulletKind.CONTINUOUS ? 3.0 : bullet.kind == BulletKind.HOMING_SHOT ? 2.1 : 5.0;
+            double y = baseY + random.nextDouble() * spread * 2.0 - spread;
+            double driftBack = -0.45 - random.nextDouble() * 0.85;
+            double driftY = random.nextDouble() * 0.7 - 0.35;
+            double size = trailSizeFor(bullet.kind) * (0.72 + random.nextDouble() * 0.56);
+            int life = trailLifeFor(bullet.kind) + random.nextInt(4);
+            if (bullet.kind == BulletKind.DRY_ICE) {
+                int sides = 5 + random.nextInt(3);
+                double rotation = random.nextDouble() * Math.PI * 2.0;
+                double spin = (random.nextDouble() - 0.5) * 0.22;
+                bulletTrailParticles.add(new BulletTrailParticle(x, y, driftBack, driftY, size, life, color,
+                        sides, rotation, spin));
+            } else if (bullet.kind == BulletKind.HOMING_SHOT) {
+                bulletTrailParticles.add(new BulletTrailParticle(x, y, driftBack * 0.55, driftY, size, life, color));
+            } else {
+                bulletTrailParticles.add(new BulletTrailParticle(x, y, driftBack, driftY, size, life, color));
+            }
+        }
+    }
+
+    void spawnLaserBeamParticles(Bullet bullet) {
+        double startX = PLAYER_X + worldAmount(28);
+        double endX = maxBulletX(bullet);
+        double beamLength = Math.max(1.0, endX - startX);
+        double y = LANE_Y[bullet.lane];
+        int count = 24;
+        for (int i = 0; i < count; i++) {
+            double t = (i + random.nextDouble()) / count;
+            double x = startX + beamLength * t;
+            double side = random.nextBoolean() ? -1.0 : 1.0;
+            double offsetY = side * (3.0 + random.nextDouble() * 12.0);
+            double vx = -0.75 - random.nextDouble() * 1.35;
+            double vy = side * (0.35 + random.nextDouble() * 1.2);
+            double size = 2.2 + random.nextDouble() * 4.8;
+            int life = 9 + random.nextInt(10);
+            int sides = 3 + random.nextInt(3);
+            double rotation = random.nextDouble() * Math.PI * 2.0;
+            double spin = (random.nextDouble() - 0.5) * 0.34;
+            bulletTrailParticles.add(new BulletTrailParticle(x, y + offsetY, vx, vy, size, life, COLOR_LASER_SPARK,
+                    sides, rotation, spin));
+        }
+    }
+
+    Color trailColorFor(BulletKind kind) {
+        if (kind == BulletKind.PIERCE) {
+            return COLOR_LASER_CORE;
+        }
+        if (kind == BulletKind.HOMING_SHOT) {
+            return COLOR_HOMING_TRAIL;
+        }
+        if (kind == BulletKind.CONTINUOUS_SURGE) {
+            return COLOR_SURGE_HEAD;
+        }
+        if (kind == BulletKind.BURST) {
+            return COLOR_BURST_HEAD;
+        }
+        if (kind == BulletKind.DRY_ICE) {
+            return COLOR_DRY_ICE_TRAIL;
+        }
+        if (kind == BulletKind.CONTINUOUS) {
+            return COLOR_CONTINUOUS_HEAD;
+        }
+        return COLOR_BASIC_HEAD;
+    }
+
+    Color damageTextColorFor(BulletKind kind) {
+        if (kind == BulletKind.PIERCE) {
+            return COLOR_LASER_CORE;
+        }
+        if (kind == BulletKind.HOMING_SHOT) {
+            return COLOR_HOMING_HEAD;
+        }
+        if (kind == BulletKind.CONTINUOUS_SURGE) {
+            return COLOR_SURGE_HEAD;
+        }
+        if (kind == BulletKind.BURST) {
+            return COLOR_BURST_HEAD;
+        }
+        if (kind == BulletKind.DRY_ICE) {
+            return COLOR_DRY_ICE_HEAD;
+        }
+        if (kind == BulletKind.CONTINUOUS) {
+            return COLOR_CONTINUOUS_HEAD;
+        }
+        return COLOR_BASIC_HEAD;
+    }
+
+    Color impactColorFor(Impact impact, int alpha) {
+        return withAlpha(impact.damageColor, alpha);
+    }
+
+    double trailSizeFor(BulletKind kind) {
+        if (kind == BulletKind.PIERCE || kind == BulletKind.BURST) {
+            return 5.6;
+        }
+        if (kind == BulletKind.HOMING_SHOT) {
+            return 2.7;
+        }
+        if (kind == BulletKind.DRY_ICE) {
+            return 4.2;
+        }
+        if (kind == BulletKind.CONTINUOUS_SURGE) {
+            return 4.8;
+        }
+        if (kind == BulletKind.CONTINUOUS) {
+            return 2.8;
+        }
+        return 4.2;
+    }
+
+    int trailLifeFor(BulletKind kind) {
+        if (kind == BulletKind.PIERCE) {
+            return 15;
+        }
+        if (kind == BulletKind.HOMING_SHOT) {
+            return 10;
+        }
+        if (kind == BulletKind.BURST || kind == BulletKind.CONTINUOUS_SURGE || kind == BulletKind.DRY_ICE) {
+            return 13;
+        }
+        if (kind == BulletKind.CONTINUOUS) {
+            return 8;
+        }
+        return 11;
     }
 
     void applyBurstSplash(Bullet bullet, Target center, int dealt) {
@@ -568,12 +894,12 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             if (target == center || target.dead || target.hp <= 0 || target.lane != center.lane) {
                 continue;
             }
-            if (Math.abs(target.x - center.x) > 92) {
+            if (Math.abs(target.x - center.x) > worldAmount(92)) {
                 continue;
             }
             target.hp -= splashDamage;
-            target.hitFlash = 10;
-            impacts.add(new Impact(target.x, LANE_Y[target.lane], splashDamage));
+            target.hitFlash = logicTicks(10);
+            impacts.add(new Impact(target.x, LANE_Y[target.lane], splashDamage, damageTextColorFor(bullet.kind)));
         }
     }
 
@@ -607,15 +933,61 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         int halfWidth = targetHalfWidth(target.kind);
         double left = target.x - halfWidth;
         double right = target.x + halfWidth;
+        if (bullet.kind == BulletKind.HOMING_SHOT) {
+            int halfHeight = targetHalfHeight(target.kind);
+            double top = LANE_Y[target.lane] - halfHeight;
+            double bottom = LANE_Y[target.lane] + halfHeight;
+            double bulletLeft = Math.min(bullet.previousX, bullet.x) - bullet.radius;
+            double bulletRight = Math.max(bullet.previousX, bullet.x) + bullet.radius;
+            double bulletTop = Math.min(bullet.previousY, bullet.y) - bullet.radius;
+            double bulletBottom = Math.max(bullet.previousY, bullet.y) + bullet.radius;
+            return bulletRight >= left && bulletLeft <= right && bulletBottom >= top && bulletTop <= bottom;
+        }
         return bullet.x + bullet.radius >= left && bullet.previousX - bullet.radius <= right;
     }
 
     static int targetHalfWidth(TargetKind kind) {
-        return kind == TargetKind.BOSS ? 59 : 46;
+        return kind == TargetKind.BOSS ? sx(59) : sx(46);
+    }
+
+    static int targetHalfHeight(TargetKind kind) {
+        return kind == TargetKind.BOSS ? sy(35) : sy(25);
     }
 
     static double targetSpawnX(TargetKind kind) {
         return LANE_RIGHT_X - targetHalfWidth(kind);
+    }
+
+    static int sx(int value) {
+        return (int) Math.round(value * COORD_SCALE_X);
+    }
+
+    static int sy(int value) {
+        return (int) Math.round(value * COORD_SCALE_Y);
+    }
+
+    static double worldAmount(double legacyAmount) {
+        return legacyAmount * COORD_SCALE;
+    }
+
+    static Font font(String name, int style, int size) {
+        return new Font(name, style, sx(size));
+    }
+
+    static BasicStroke stroke(float width) {
+        return new BasicStroke((float) worldAmount(width));
+    }
+
+    static BasicStroke stroke(float width, int cap, int join) {
+        return new BasicStroke((float) worldAmount(width), cap, join);
+    }
+
+    static int logicTicks(int legacyTicks) {
+        return Math.max(1, (int) Math.round(legacyTicks / GAMEPLAY_STEP_SCALE));
+    }
+
+    static double gameplayStep(double legacyAmount) {
+        return worldAmount(legacyAmount) * GAMEPLAY_STEP_SCALE;
     }
 
     void updateImpacts() {
@@ -646,8 +1018,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             XpOrb orb = iterator.next();
             orb.previousX = orb.x;
             orb.previousY = orb.y;
-            orb.x -= orb.speed;
-            orb.pulse++;
+        orb.x -= gameplayStep(orb.speed);
+        orb.pulse++;
             double playerY = LANE_Y[lane];
             double dx = PLAYER_X - orb.x;
             double dy = playerY - orb.y;
@@ -657,7 +1029,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             }
             if (orb.attracted && distance > XP_COLLECT_RADIUS) {
                 double pull = 2.0 + Math.max(0.0, XP_ATTRACT_RADIUS - distance) / 18.0;
-                double step = Math.min(distance - XP_COLLECT_RADIUS, pull);
+                double step = Math.min(distance - XP_COLLECT_RADIUS, gameplayStep(pull));
                 orb.x += dx / distance * step;
                 orb.y += dy / distance * step;
                 distance = Math.hypot(PLAYER_X - orb.x, playerY - orb.y);
@@ -667,7 +1039,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                 score += orb.value * 12;
                 impacts.add(new Impact(PLAYER_X, LANE_Y[lane], 0));
                 iterator.remove();
-            } else if (orb.x < -45) {
+            } else if (orb.x < -worldAmount(45)) {
                 iterator.remove();
             }
         }
@@ -675,7 +1047,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
 
     void handleCollisions() {
         for (Target target : targets) {
-            if (target.x <= PLAYER_X + 32 && target.lane == lane && !target.dead && target.hp > 0) {
+            if (target.x <= PLAYER_X + worldAmount(32) && target.lane == lane && !target.dead && target.hp > 0) {
                 if (phaseSwitchTicks > 0 && target.kind != TargetKind.BOSS) {
                     target.dead = true;
                     phaseSwitchTicks = 0;
@@ -810,9 +1182,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void addExperience(int amount, boolean allowCrossfeed) {
         int gained = amount;
         if (allowCrossfeed && crossfeedLevel > 0
-                && crossfeedCooldownTicks <= 0 && startsWithCrossfeedLetter(lastCompletedWord)) {
+                && crossfeedBonusTicks > 0 && crossfeedCooldownTicks <= 0) {
             gained += Math.max(1, amount * 2 / 5);
-            crossfeedCooldownTicks = 150;
+            crossfeedCooldownTicks = logicTicks(150);
+            crossfeedBonusTicks = 0;
         }
         xp += gained;
         while (xp >= xpToNext) {
@@ -919,7 +1292,26 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (choiceAlreadyHas(effect)) {
             return false;
         }
+        if (isEffectAtCap(effect)) {
+            return false;
+        }
         return rarity != UpgradeRarity.HIGH || !hasHighTalent(effect);
+    }
+
+    boolean isEffectAtCap(UpgradeEffect effect) {
+        if (effect == UpgradeEffect.REINFORCED_CORE) {
+            return maxHpUpgradeBonus >= MAX_HP_UPGRADE_BONUS;
+        }
+        if (effect == UpgradeEffect.FIELD_PATCH) {
+            return hp >= maxHp && maxHpUpgradeBonus >= MAX_HP_UPGRADE_BONUS;
+        }
+        if (effect == UpgradeEffect.CALIBRATED_DAMAGE) {
+            return damageBonusPercent >= MAX_DAMAGE_BONUS_PERCENT;
+        }
+        if (effect == UpgradeEffect.TRIGGER_TUNING) {
+            return fireRateBonusPercent >= MAX_TRIGGER_TUNING_BONUS_PERCENT;
+        }
+        return false;
     }
 
     UpgradeEffect[] poolFor(UpgradeRarity rarity) {
@@ -930,7 +1322,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (rarity == UpgradeRarity.HIGH) {
             return new UpgradeEffect[] {
                     UpgradeEffect.RHYTHM_CANNON,
-                    UpgradeEffect.FROST_FIELD
+                    UpgradeEffect.FROST_FIELD,
+                    UpgradeEffect.DRY_ICE_BULLET,
+                    UpgradeEffect.HOMING_SHOTGUN
             };
         }
         if (rarity == UpgradeRarity.UNCOMMON) {
@@ -1090,14 +1484,14 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         if (effect == UpgradeEffect.TRIGGER_TUNING) {
             return new UpgradeCard("Trigger Tuning",
-                    "Single-shot: +1 bullet per level, +20% total damage split across pellets. Continuous: +20% fire rate.",
+                    "Single-shot: +1 bullet per level, +20% total damage split across pellets.",
                     "扳机调校",
-                    "单发：每级 +1 弹，总伤害 +20% 后平分到弹丸；连发：+20% 射速。",
+                    "单发：每级 +1 弹，总伤害 +20% 后平分到弹丸。",
                     rarity, effect);
         }
         if (effect == UpgradeEffect.COMBO_TUNING) {
-            return new UpgradeCard("Combo Tuning", "Clean combo damage improves",
-                    "连击调律", "稳定连击会提升伤害", rarity, effect);
+            return new UpgradeCard("Combo Tuning", "Combo damage improves",
+                    "连击调律", "连击伤害提升", rarity, effect);
         }
         if (effect == UpgradeEffect.LONG_WORD_REWARD) {
             return new UpgradeCard("Longword Reward", "6-7 letter words repair HP",
@@ -1112,7 +1506,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                     "尾字爆点", "完成词追加小范围爆点弹", rarity, effect);
         }
         if (effect == UpgradeEffect.VOWEL_CONVERGENCE) {
-            return new UpgradeCard("Vowel Convergence", "Vowel-ending words pull nearby XP",
+            return new UpgradeCard("Vowel Convergence", "Vowel-ending words pull same-lane XP",
                     "元音收束", "元音结尾词牵引同 lane XP", rarity, effect);
         }
         if (effect == UpgradeEffect.HARD_CONSONANT_BREAK) {
@@ -1128,16 +1522,16 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                     "上下换拍", "上下交替完成词会追加分路轻弹", rarity, effect);
         }
         if (effect == UpgradeEffect.SINGLE_LANE_BASTION) {
-            return new UpgradeCard("Single-Lane Bastion", "Four same-lane words build one lane guard",
-                    "单路堡垒", "同路连续 4 词生成该路护栏", rarity, effect);
+            return new UpgradeCard("Single-Lane Bastion", "Four same-lane words build one non-Boss lane guard",
+                    "单路堡垒", "同路连续 4 词生成该路非 Boss 护栏", rarity, effect);
         }
         if (effect == UpgradeEffect.ALTERNATING_GUARD) {
-            return new UpgradeCard("Alternating Guard", "Four alternating words guard both lanes",
-                    "交替护栏", "上下交替 4 词后双路生成护栏", rarity, effect);
+            return new UpgradeCard("Alternating Guard", "Four alternating words guard both lanes from non-Boss collisions",
+                    "交替护栏", "上下交替 4 词后双路生成非 Boss 护栏", rarity, effect);
         }
         if (effect == UpgradeEffect.COMBO_CALIBRATOR) {
-            return new UpgradeCard("Combo Calibrator", "Combo 20/40/60 fires a precise shot",
-                    "连击校准器", "连击 20/40/60 时追加精准弹", rarity, effect);
+            return new UpgradeCard("Combo Calibrator", "Combo 3/5/10 adds +1/+2/+4 damage per level",
+                    "连击校准器", "连击 3/5/10 时每级追加 +1/+2/+4 伤害", rarity, effect);
         }
         if (effect == UpgradeEffect.FIRST_LETTER_LOCK) {
             return new UpgradeCard("First-Letter Lock", "Unique first letters add focus damage",
@@ -1164,20 +1558,20 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                     "干净收尾", "无错且无回删完成词追加轻弹", rarity, effect);
         }
         if (effect == UpgradeEffect.ERROR_RESET) {
-            return new UpgradeCard("Error Reset", "Complete soon after a mismatch to fire a reset shot",
-                    "断错复位", "失配后快速完成词追加复位弹", rarity, effect);
+            return new UpgradeCard("Error Reset", "After a mismatch, complete the same word again to fire a reset shot",
+                    "断错复位", "失配后重新完成同一单词追加复位弹", rarity, effect);
         }
         if (effect == UpgradeEffect.BACKSPACE_FIX) {
-            return new UpgradeCard("Backspace Fix", "Backspace-corrected words add damage",
-                    "回删修正", "回删修正后完成词追加伤害", rarity, effect);
+            return new UpgradeCard("Backspace Fix", "Words completed after Backspace add damage",
+                    "回删修正", "使用回删后完成词追加伤害", rarity, effect);
         }
         if (effect == UpgradeEffect.CALM_AFTER_ERROR) {
-            return new UpgradeCard("Calm After Error", "Two clean recovery words prepare a guard",
-                    "错后冷静", "失配后连续干净完成 2 词获得守护", rarity, effect);
+            return new UpgradeCard("Calm After Error", "Two clean recovery words prepare a non-Boss guard",
+                    "错后冷静", "失配后连续干净完成 2 词获得非 Boss 守护", rarity, effect);
         }
         if (effect == UpgradeEffect.BACKSPACE_COUNTER) {
-            return new UpgradeCard("Backspace Counter", "Backspace-corrected words fire a counter shot",
-                    "回删反击", "回删修正完成词追加反击弹", rarity, effect);
+            return new UpgradeCard("Backspace Counter", "Words completed after Backspace fire a counter shot",
+                    "回删反击", "使用回删后完成词追加反击弹", rarity, effect);
         }
         if (effect == UpgradeEffect.PRECISE_PICKUP) {
             return new UpgradeCard("Precise Pickup", "Finishing near same-lane XP pulls it harder",
@@ -1200,8 +1594,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                     "压力阀", "高压完成词时减速整条 lane", rarity, effect);
         }
         if (effect == UpgradeEffect.PHASE_SWITCH) {
-            return new UpgradeCard("Phase Switch", "Lane change blocks 1 collision, cooldown",
-                    "相位换路", "换 lane 后抵挡 1 次碰撞，有冷却", rarity, effect);
+            return new UpgradeCard("Phase Switch", "Lane change blocks 1 non-Boss collision, cooldown",
+                    "相位换路", "换 lane 后抵挡 1 次非 Boss 碰撞，有冷却", rarity, effect);
         }
         if (effect == UpgradeEffect.BOSS_BREAKER) {
             return new UpgradeCard("Boss Breaker", "+Boss damage, smaller elite bonus",
@@ -1212,8 +1606,25 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                     "交叉字母", "以 f/t/k 开头的单词会提高 XP 收集", rarity, effect);
         }
         if (effect == UpgradeEffect.FROST_FIELD) {
-            return new UpgradeCard("Piercing Rail", "High talent: typed words fire a piercing shot; each hit loses 20% damage",
-                    "贯穿轨道", "高稀有天赋：完成词发射贯穿弹，每次穿透衰减 20% 伤害", rarity, effect);
+            return new UpgradeCard("Laser Gun",
+                    "High talent: typed words fire an instant red beam; each pierced hit loses 20% damage",
+                    "激光枪",
+                    "高稀有天赋：完成词瞬间发射红色光束；每次穿透衰减 20% 伤害",
+                    rarity, effect);
+        }
+        if (effect == UpgradeEffect.DRY_ICE_BULLET) {
+            return new UpgradeCard("Dry-Ice Bullet",
+                    "High talent: typed words fire an icy pentagon round; splash slows nearby enemies and every third hit freezes the same target",
+                    "干冰子弹",
+                    "高稀有天赋：完成词发射冰质五边形弹；范围减速，连续三次命中同一目标会冻结",
+                    rarity, effect);
+        }
+        if (effect == UpgradeEffect.HOMING_SHOTGUN) {
+            return new UpgradeCard("Homing Shotgun",
+                    "High talent: typed words fire a wide fan of pellets that arm, then chase the nearest enemy",
+                    "追踪散弹",
+                    "高稀有天赋：完成词射出大量扇形弹丸，飞出一段距离后追踪最近敌人",
+                    rarity, effect);
         }
         if (effect == UpgradeEffect.TEST_INVINCIBLE) {
             return new UpgradeCard("Test Invincible", "sudo only: HP loss becomes 0",
@@ -1273,7 +1684,6 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             phaseSwitchLevel++;
         } else if (card.effect == UpgradeEffect.BOSS_BREAKER) {
             bossBreakerLevel++;
-            bossDamageBonus += 1;
         } else if (card.effect == UpgradeEffect.CROSSFEED) {
             crossfeedLevel++;
         } else if (isGroupTwoToFiveEffect(card.effect)) {
@@ -1465,7 +1875,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (effect == UpgradeEffect.TEST_INVINCIBLE || effect == UpgradeEffect.TEST_BIG_XP) {
             return UpgradeRarity.HIGH;
         }
-        if (effect == UpgradeEffect.RHYTHM_CANNON || effect == UpgradeEffect.FROST_FIELD) {
+        if (effect == UpgradeEffect.RHYTHM_CANNON || effect == UpgradeEffect.FROST_FIELD
+                || effect == UpgradeEffect.DRY_ICE_BULLET || effect == UpgradeEffect.HOMING_SHOTGUN) {
             return UpgradeRarity.HIGH;
         }
         if (effect == UpgradeEffect.PHASE_SWITCH || effect == UpgradeEffect.BOSS_BREAKER
@@ -1549,9 +1960,11 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         } else {
             boolean hadProgress = typed.length() > 0;
             int failedLane = typingLane;
+            String failedWord = hadProgress && failedLane >= 0 ? laneWords[failedLane] : "";
             resetTypingProgress();
-            recentErrorTicks = 90;
+            recentErrorTicks = logicTicks(90);
             nextWordStartsAfterError = true;
+            errorResetRecoveryWord = failedWord;
             postErrorCleanStreak = 0;
             int restartLane = resolveTypingLane(String.valueOf(c));
             if (restartLane >= 0) {
@@ -1562,7 +1975,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             }
             wrongFlashLane = failedLane;
             combo = 0;
-            wrongFlashTicks = 12;
+            wrongFlashTicks = logicTicks(12);
             setDeathReason("typing errors broke your output", "连续输入失误打断了输出");
         }
     }
@@ -1588,7 +2001,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         typingLane = nextTypingLane;
         typed = candidate;
-        inputPulseTicks = 6;
+        inputPulseTicks = logicTicks(6);
         if (typed.equals(laneWords[typingLane])) {
             int previousLane = lane;
             int completedLane = typingLane;
@@ -1630,6 +2043,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void startCurrentWord(String candidate, int laneIndex) {
         currentWordUsedBackspace = false;
         currentWordStartedAfterError = recentErrorTicks > 0 || nextWordStartsAfterError;
+        currentWordMatchesErrorReset = recentErrorTicks > 0
+                && errorResetRecoveryWord.length() > 0
+                && errorResetRecoveryWord.equals(laneWords[laneIndex]);
         currentWordUniqueFirst = false;
         currentWordCleanPrefix3 = false;
         currentWordReachedHalfPrefix = false;
@@ -1660,6 +2076,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         typingLane = -1;
         currentWordUsedBackspace = false;
         currentWordStartedAfterError = false;
+        currentWordMatchesErrorReset = false;
         currentWordUniqueFirst = false;
         currentWordCleanPrefix3 = false;
         currentWordReachedHalfPrefix = false;
@@ -1670,6 +2087,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         completedWordWasClean = !currentWordUsedBackspace;
         completedWordUsedBackspace = currentWordUsedBackspace;
         completedWordStartedAfterError = currentWordStartedAfterError;
+        completedWordMatchesErrorReset = currentWordMatchesErrorReset
+                && completedWord.equals(errorResetRecoveryWord);
         completedWordUniqueFirst = currentWordUniqueFirst;
         completedWordCleanPrefix3 = currentWordCleanPrefix3 && completedWordWasClean;
         completedWordReachedHalfPrefix = currentWordReachedHalfPrefix && completedWordWasClean;
@@ -1735,16 +2154,46 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void completeLaneWord(int attackLane, String completedWord) {
         combo++;
         bestCombo = Math.max(bestCombo, combo);
+        primeCrossfeed(completedWord);
 
         Target target = nearestTargetInLane(attackLane);
         int damage = baseDamage + combo / 8 + perfectBonus / 2
                 + groupOneDamageBonus(completedWord, target)
                 + groupTwoToFiveDamageBonus(completedWord, target);
         damage = scaledDamage(damage, target);
-        fireSingleShotVolley(attackLane, damage, 1, BulletKind.BASIC);
+        firePrimaryWeapon(completedWord, attackLane, target, damage);
         applyHighTalentAfterAttack(completedWord, attackLane, target);
         applyGroupOneAfterAttack(completedWord, attackLane, target);
         applyGroupTwoToFiveAfterAttack(completedWord, attackLane, target);
+    }
+
+    void firePrimaryWeapon(String completedWord, int attackLane, Target target, int damage) {
+        BulletKind primaryKind = primaryWeaponKind();
+        if (primaryKind == BulletKind.PIERCE) {
+            int pierceDamage = scaledDamage(4 + combo / 10
+                    + groupOneDamageBonus(completedWord, target)
+                    + groupTwoToFiveDamageBonus(completedWord, target), target);
+            fireBullet(attackLane, pierceDamage, 5, BulletKind.PIERCE);
+        } else if (primaryKind == BulletKind.HOMING_SHOT) {
+            fireHomingShotgun(attackLane, damage);
+        } else {
+            fireSingleShotVolley(attackLane, damage, 1, primaryKind);
+        }
+    }
+
+    BulletKind primaryWeaponKind() {
+        for (UpgradeEffect talent : highTalents) {
+            if (talent == UpgradeEffect.FROST_FIELD) {
+                return BulletKind.PIERCE;
+            }
+            if (talent == UpgradeEffect.DRY_ICE_BULLET) {
+                return BulletKind.DRY_ICE;
+            }
+            if (talent == UpgradeEffect.HOMING_SHOTGUN) {
+                return BulletKind.HOMING_SHOT;
+            }
+        }
+        return BulletKind.BASIC;
     }
 
     void applyHighTalentAfterAttack(String completedWord, int attackLane, Target target) {
@@ -1754,11 +2203,11 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             showMessage("Autocannon overcharged by typing.",
                     "自动炮已由输入强化。");
         }
-        if (hasHighTalent(UpgradeEffect.FROST_FIELD)) {
-            int pierceDamage = scaledDamage(4 + combo / 10
-                    + groupOneDamageBonus(completedWord, target)
-                    + groupTwoToFiveDamageBonus(completedWord, target), target);
-            fireBullet(attackLane, pierceDamage, 5, BulletKind.PIERCE);
+    }
+
+    void primeCrossfeed(String completedWord) {
+        if (crossfeedLevel > 0 && startsWithCrossfeedLetter(completedWord)) {
+            crossfeedBonusTicks = Math.max(crossfeedBonusTicks, logicTicks(150));
         }
     }
 
@@ -1811,6 +2260,10 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (level > 0 && completedWordCleanPrefix3) {
             bonus += 1 + level / 2;
         }
+        level = effectLevel(UpgradeEffect.COMBO_CALIBRATOR);
+        if (level > 0) {
+            bonus += comboCalibratorDamageBonus(level);
+        }
         level = effectLevel(UpgradeEffect.PREFIX_ILLUMINATION);
         if (level > 0 && completedWordReachedHalfPrefix) {
             bonus += 1 + level;
@@ -1836,7 +2289,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         int level = effectLevel(UpgradeEffect.SAME_LANE_SUPPRESSION);
         if (level > 0 && sameLaneStreak >= 2 && target != null) {
-            target.slowTicks = Math.max(target.slowTicks, 34 + level * 12);
+            target.slowTicks = Math.max(target.slowTicks, logicTicks(34 + level * 12));
         }
 
         level = effectLevel(UpgradeEffect.LANE_SWAP_BEAT);
@@ -1860,20 +2313,15 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             impacts.add(new Impact(PLAYER_X, LANE_Y[attackLane], 0));
         }
 
-        level = effectLevel(UpgradeEffect.COMBO_CALIBRATOR);
-        if (level > 0 && combo >= 20 && combo % 20 == 0) {
-            fireBullet(attackLane, scaledDamage(3 + level, target), 1, BulletKind.BASIC);
-        }
-
         level = effectLevel(UpgradeEffect.PREFIX_ILLUMINATION);
         if (level > 0 && completedWordReachedHalfPrefix && target != null) {
-            target.markTicks = Math.max(target.markTicks, 80 + level * 20);
-            target.hitFlash = Math.max(target.hitFlash, 4);
+            target.markTicks = Math.max(target.markTicks, logicTicks(80 + level * 20));
+            target.hitFlash = Math.max(target.hitFlash, logicTicks(4));
         }
 
         level = effectLevel(UpgradeEffect.FIRST_LETTER_TICKET);
         if (level > 0 && sameFirstLetterStreak >= 3 && sameFirstLetterStreak % 3 == 0) {
-            xpOrbs.add(new XpOrb(PLAYER_X + 170, attackLane, 1 + level));
+            xpOrbs.add(new XpOrb(PLAYER_X + worldAmount(170), attackLane, 1 + level));
         }
 
         level = effectLevel(UpgradeEffect.DUAL_PREFIX_SCAN);
@@ -1887,9 +2335,11 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
 
         level = effectLevel(UpgradeEffect.ERROR_RESET);
-        if (level > 0 && completedWordStartedAfterError) {
+        if (level > 0 && completedWordMatchesErrorReset) {
             fireBullet(attackLane, scaledDamage(2 + level, target), 1, BulletKind.BURST);
             recentErrorTicks = 0;
+            nextWordStartsAfterError = false;
+            errorResetRecoveryWord = "";
         }
 
         level = effectLevel(UpgradeEffect.CALM_AFTER_ERROR);
@@ -1904,34 +2354,34 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
 
         level = effectLevel(UpgradeEffect.PRECISE_PICKUP);
         if (level > 0 && hasNearbyLaneXp(attackLane)) {
-            pullNearestXpOrb(attackLane, 46.0 + level * 18.0);
+            pullNearestXpOrb(attackLane, worldAmount(46.0 + level * 18.0));
         }
 
         level = effectLevel(UpgradeEffect.FINAL_LETTER_PULL);
         if (level > 0 && endsWithVowel(word)) {
-            pullNearestXpOrb(attackLane, 34.0 + level * 14.0);
+            pullNearestXpOrb(attackLane, worldAmount(34.0 + level * 14.0));
             if (target != null) {
-                target.slowTicks = Math.max(target.slowTicks, 24 + level * 10);
+                target.slowTicks = Math.max(target.slowTicks, logicTicks(24 + level * 10));
             }
         }
 
         level = effectLevel(UpgradeEffect.LONG_WORD_FOCUS);
         if (level > 0 && completedWordWasClean && isLongLaneWord(word)) {
-            longFocusTicks = Math.max(longFocusTicks, 130 + level * 28);
-            impacts.add(new Impact(PLAYER_X + 8, LANE_Y[attackLane], 0));
+            longFocusTicks = Math.max(longFocusTicks, logicTicks(130 + level * 28));
+                impacts.add(new Impact(PLAYER_X + worldAmount(8), LANE_Y[attackLane], 0));
         }
 
         level = effectLevel(UpgradeEffect.DANGER_WORD);
         if (level > 0 && isDangerClose(target)) {
-            target.x += 26 + level * 10;
+            target.x += worldAmount(26 + level * 10);
             target.previousX = Math.min(target.previousX, target.x);
             impacts.add(new Impact(target.x, LANE_Y[attackLane], 0));
         }
 
         level = effectLevel(UpgradeEffect.PRESSURE_VALVE);
         if (level > 0 && laneHasPressure(attackLane)) {
-            laneSlowTicks[attackLane] = Math.max(laneSlowTicks[attackLane], 78 + level * 18);
-            impacts.add(new Impact(PLAYER_X + 40, LANE_Y[attackLane], 0));
+            laneSlowTicks[attackLane] = Math.max(laneSlowTicks[attackLane], logicTicks(78 + level * 18));
+            impacts.add(new Impact(PLAYER_X + worldAmount(40), LANE_Y[attackLane], 0));
         }
     }
 
@@ -1952,7 +2402,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     void pullNearestXpOrb(int laneIndex) {
-        pullNearestXpOrb(laneIndex, 20.0 + vowelConvergenceLevel * 8.0);
+        pullNearestXpOrb(laneIndex, worldAmount(20.0 + vowelConvergenceLevel * 8.0));
     }
 
     void pullNearestXpOrb(int laneIndex, double maxStep) {
@@ -1983,7 +2433,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
 
     boolean hasNearbyLaneXp(int laneIndex) {
         for (XpOrb orb : xpOrbs) {
-            if (orb.lane == laneIndex && Math.abs(orb.x - PLAYER_X) < 420) {
+            if (orb.lane == laneIndex && Math.abs(orb.x - PLAYER_X) < worldAmount(420)) {
                 return true;
             }
         }
@@ -1991,13 +2441,26 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     boolean isDangerClose(Target target) {
-        return target != null && target.x <= PLAYER_X + 260;
+        return target != null && target.x <= PLAYER_X + worldAmount(260);
+    }
+
+    int comboCalibratorDamageBonus(int level) {
+        if (combo == 10) {
+            return 4 * level;
+        }
+        if (combo == 5) {
+            return 2 * level;
+        }
+        if (combo == 3) {
+            return level;
+        }
+        return 0;
     }
 
     boolean laneHasPressure(int laneIndex) {
         for (Target target : targets) {
             if (target.lane == laneIndex && !target.dead && target.hp > 0
-                    && target.x <= PLAYER_X + 320) {
+                    && target.x <= PLAYER_X + worldAmount(320)) {
                 return true;
             }
         }
@@ -2039,7 +2502,11 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (longFocusTicks > 0) {
             percent += effectLevel(UpgradeEffect.LONG_WORD_FOCUS) * 8;
         }
-        return Math.max(1, damage + damage * percent / 100);
+        int bonus = damage * percent / 100;
+        if (percent > 0 && bonus == 0) {
+            bonus = 1;
+        }
+        return Math.max(1, damage + bonus);
     }
 
     int triggerTuningLevel() {
@@ -2066,6 +2533,31 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         for (int i = 0; i < pellets; i++) {
             int pelletDamage = basePelletDamage + (i < remainder ? 1 : 0);
             fireBullet(attackLane, pelletDamage, pierceLeft, kind, -i * 11.0);
+        }
+    }
+
+    void fireHomingShotgun(int attackLane, int baseTotalDamage) {
+        int pellets = HOMING_SHOTGUN_BASE_PELLETS + triggerTuningLevel() * 2;
+        int tunedDamage = triggerTunedTotalDamage(baseTotalDamage + Math.max(4, baseTotalDamage / 2));
+        int totalDamage = Math.max(pellets, tunedDamage);
+        int basePelletDamage = totalDamage / pellets;
+        int remainder = totalDamage % pellets;
+        double startX = PLAYER_X + worldAmount(31);
+        double centerY = LANE_Y[attackLane];
+        double middle = (pellets - 1) / 2.0;
+        for (int i = 0; i < pellets; i++) {
+            int pelletDamage = basePelletDamage + (i < remainder ? 1 : 0);
+            Bullet bullet = new Bullet(startX - worldAmount(i * 1.8), attackLane, pelletDamage, 1,
+                    BulletKind.HOMING_SHOT, true);
+            double t = pellets == 1 ? 0.5 : i / (double) (pellets - 1);
+            double angle = -HOMING_SHOTGUN_FAN_RADIANS / 2.0 + HOMING_SHOTGUN_FAN_RADIANS * t;
+            bullet.y = centerY + worldAmount((i - middle) * 1.4);
+            bullet.previousY = bullet.y;
+            bullet.launchX = bullet.x;
+            bullet.launchY = bullet.y;
+            bullet.vx = Math.cos(angle) * bullet.speed;
+            bullet.vy = Math.sin(angle) * bullet.speed;
+            bullets.add(bullet);
         }
     }
 
@@ -2101,14 +2593,29 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     void fireBullet(int attackLane, int damage, int pierceLeft, BulletKind kind, double startOffset) {
-        bullets.add(new Bullet(PLAYER_X + 28 + startOffset, attackLane, damage, pierceLeft, kind));
+        fireBullet(attackLane, damage, pierceLeft, kind, startOffset, true);
+    }
+
+    void fireBullet(int attackLane, int damage, int pierceLeft, BulletKind kind,
+            double startOffset, boolean particleTrail) {
+        boolean resolvedParticleTrail = particleTrail && kind != BulletKind.BASIC && kind != BulletKind.PIERCE;
+        Bullet bullet = new Bullet(PLAYER_X + worldAmount(28 + startOffset), attackLane, damage, pierceLeft, kind,
+                resolvedParticleTrail);
+        if (kind == BulletKind.PIERCE) {
+            bullet.x = maxBulletX(bullet);
+            bullet.y = LANE_Y[attackLane];
+            resolveLaserBeam(bullet);
+            spawnLaserBeamParticles(bullet);
+            bullet.beamResolved = true;
+        }
+        bullets.add(bullet);
     }
 
     Target nearestTargetInLane(int laneIndex) {
         Target best = null;
         double bestDistance = Double.MAX_VALUE;
         for (Target target : targets) {
-            if (target.lane == laneIndex && !target.dead && target.hp > 0 && target.x > PLAYER_X - 10) {
+            if (target.lane == laneIndex && !target.dead && target.hp > 0 && target.x > PLAYER_X - worldAmount(10)) {
                 double distance = target.x - PLAYER_X;
                 if (distance < bestDistance) {
                     bestDistance = distance;
@@ -2223,7 +2730,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void showMessage(String nextMessage, String nextMessageZh) {
         message = nextMessage;
         messageZh = nextMessageZh;
-        messageTicks = 170;
+        messageTicks = logicTicks(170);
     }
 
     void toggleLanguage() {
@@ -2370,7 +2877,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void reset() {
         targets.clear();
         bullets.clear();
+        bulletTrailParticles.clear();
         impacts.clear();
+        icePulses.clear();
         breakParticles.clear();
         xpOrbs.clear();
         clearUpgradeChoices();
@@ -2383,7 +2892,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         combo = 0;
         bestCombo = 0;
         tick = 0;
-        spawnCooldown = 25;
+        spawnCooldown = logicTicks(25);
         bossCooldownKills = 10;
         autoFireCooldown = 0;
         continuousSurgeTicks = 0;
@@ -2393,7 +2902,6 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         completePulseTicks = 0;
         completePulseLane = -1;
         baseDamage = 5;
-        bossDamageBonus = 0;
         perfectBonus = 0;
         correctTypedChars = 0;
         runStartTick = tick;
@@ -2411,6 +2919,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         bossBreakerLevel = 0;
         crossfeedLevel = 0;
         crossfeedCooldownTicks = 0;
+        crossfeedBonusTicks = 0;
         longWordRewardLevel = 0;
         shortWordQuickshotLevel = 0;
         finalLetterBurstLevel = 0;
@@ -2438,6 +2947,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         recentErrorTicks = 0;
         longFocusTicks = 0;
         calmGuardCharges = 0;
+        errorResetRecoveryWord = "";
         lastCompletedLane = -1;
         sameLaneStreak = 0;
         alternatingLaneStreak = 0;
@@ -2449,6 +2959,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         completedWordWasClean = false;
         completedWordUsedBackspace = false;
         completedWordStartedAfterError = false;
+        completedWordMatchesErrorReset = false;
         completedWordUniqueFirst = false;
         completedWordCleanPrefix3 = false;
         completedWordReachedHalfPrefix = false;
@@ -2480,14 +2991,15 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         root.setColor(COLOR_BACKGROUND);
         root.fillRect(0, 0, getWidth(), getHeight());
 
-        double scale = Math.min(getWidth() / (double) WIDTH, getHeight() / (double) HEIGHT);
-        int scaledWidth = (int) Math.round(WIDTH * scale);
-        int scaledHeight = (int) Math.round(HEIGHT * scale);
+        double scale = Math.min(getWidth() / (double) RENDER_WIDTH, getHeight() / (double) RENDER_HEIGHT);
+        int scaledWidth = (int) Math.round(RENDER_WIDTH * scale);
+        int scaledHeight = (int) Math.round(RENDER_HEIGHT * scale);
         int offsetX = (getWidth() - scaledWidth) / 2;
         int offsetY = (getHeight() - scaledHeight) / 2;
 
         BufferedImage buffer = logicalFrameBuffer();
         Graphics2D g = buffer.createGraphics();
+        g.scale(RENDER_SCALE_X, RENDER_SCALE_Y);
         g.setClip(0, 0, WIDTH, HEIGHT);
         g.setColor(COLOR_BACKGROUND);
         g.fillRect(0, 0, WIDTH, HEIGHT);
@@ -2500,8 +3012,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     BufferedImage logicalFrameBuffer() {
-        if (frameBuffer == null || frameBuffer.getWidth() != WIDTH || frameBuffer.getHeight() != HEIGHT) {
-            frameBuffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
+        if (frameBuffer == null || frameBuffer.getWidth() != RENDER_WIDTH || frameBuffer.getHeight() != RENDER_HEIGHT) {
+            frameBuffer = new BufferedImage(RENDER_WIDTH, RENDER_HEIGHT, BufferedImage.TYPE_INT_RGB);
         }
         return frameBuffer;
     }
@@ -2511,7 +3023,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         drawLanes(g);
         drawXpOrbs(g);
         drawTargets(g);
+        drawBulletTrailParticles(g);
         drawBullets(g);
+        drawIcePulses(g);
         drawBreakParticles(g);
         drawImpacts(g);
         drawPlayer(g);
@@ -2532,7 +3046,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     double pulse(double speed, double offset) {
-        double value = 0.5 + 0.5 * Math.sin((tick + offset) * speed);
+        double value = 0.5 + 0.5 * Math.sin((tick * GAMEPLAY_STEP_SCALE + offset) * speed);
         return smoothstep(value);
     }
 
@@ -2567,47 +3081,48 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     void drawNeonBackdrop(Graphics2D g) {
-        int phase = (tick / 2) % 80;
+        int gridStep = sx(80);
+        int phase = ((int) (tick * GAMEPLAY_STEP_SCALE / 2.0 * COORD_SCALE)) % gridStep;
         g.setStroke(STROKE_CARD_IDLE);
         g.setColor(COLOR_GRID_MINOR);
-        for (int x = -80 + phase; x < WIDTH + 90; x += 80) {
-            g.drawLine(x, 108, x + 110, HEIGHT - 60);
+        for (int x = -gridStep + phase; x < WIDTH + sx(90); x += gridStep) {
+            g.drawLine(x, sy(108), x + sx(110), HEIGHT - sy(60));
         }
         g.setColor(COLOR_GRID_MAJOR);
-        for (int y = 130; y < HEIGHT - 70; y += 54) {
-            int drift = (int) (Math.sin((tick + y) * 0.018) * 10);
-            g.drawLine(42, y + drift, WIDTH - 42, y - drift / 2);
+        for (int y = sy(130); y < HEIGHT - sy(70); y += sy(54)) {
+            int drift = (int) (Math.sin((tick * GAMEPLAY_STEP_SCALE + y / COORD_SCALE_Y) * 0.018) * sx(10));
+            g.drawLine(sx(42), y + drift, WIDTH - sx(42), y - drift / 2);
         }
-        int scanY = 118 + (tick * 3 % (HEIGHT - 180));
+        int scanY = sy(118) + ((int) (tick * GAMEPLAY_STEP_SCALE * worldAmount(3.0)) % (HEIGHT - sy(180)));
         g.setColor(COLOR_SCANLINE);
-        g.fillRect(55, scanY, WIDTH - 110, 2);
+        g.fillRect(sx(55), scanY, WIDTH - sx(110), sy(2));
     }
 
     void drawLanes(Graphics2D g) {
         g.setStroke(STROKE_LANE);
         for (int i = 0; i < 2; i++) {
-            int glow = i == lane ? 16 + (int) (pulse(0.12, i * 23) * 10) : 8;
+            int glow = i == lane ? sx(16) + (int) (pulse(0.12, i * 23) * sx(10)) : sx(8);
             g.setColor(COLOR_LANE_GLOW);
-            g.fillRoundRect(LANE_LEFT_X - glow / 2, LANE_Y[i] - 58 - glow / 2,
-                    LANE_RIGHT_X - LANE_LEFT_X + glow, 116 + glow, 8, 8);
+            g.fillRoundRect(LANE_LEFT_X - glow / 2, LANE_Y[i] - sy(58) - glow / 2,
+                    LANE_RIGHT_X - LANE_LEFT_X + glow, sy(116) + glow, sx(8), sy(8));
             g.setColor(i == lane ? COLOR_LANE_ACTIVE : COLOR_LANE_IDLE);
             g.drawLine(LANE_LEFT_X, LANE_Y[i], LANE_RIGHT_X, LANE_Y[i]);
             g.setColor(COLOR_LANE_FILL);
-            g.fillRoundRect(LANE_LEFT_X, LANE_Y[i] - 58,
-                    LANE_RIGHT_X - LANE_LEFT_X, 116, 8, 8);
+            g.fillRoundRect(LANE_LEFT_X, LANE_Y[i] - sy(58),
+                    LANE_RIGHT_X - LANE_LEFT_X, sy(116), sx(8), sy(8));
             g.setColor(i == lane ? COLOR_LANE_BORDER_ACTIVE : COLOR_LANE_BORDER_IDLE);
-            g.drawRoundRect(LANE_LEFT_X, LANE_Y[i] - 58,
-                    LANE_RIGHT_X - LANE_LEFT_X, 116, 8, 8);
+            g.drawRoundRect(LANE_LEFT_X, LANE_Y[i] - sy(58),
+                    LANE_RIGHT_X - LANE_LEFT_X, sy(116), sx(8), sy(8));
         }
     }
 
     void drawLaneWordsPanel(Graphics2D g) {
-        int width = 760;
-        int height = 78;
+        int width = sx(760);
+        int height = sy(78);
         int x = (WIDTH - width) / 2;
-        int y = HEIGHT - 320;
+        int y = HEIGHT - sy(320);
         drawLaneWordCard(g, 0, x, y, width, height);
-        drawLaneWordCard(g, 1, x, y + height + 18, width, height);
+        drawLaneWordCard(g, 1, x, y + height + sy(18), width, height);
     }
 
     void drawLaneWordCard(Graphics2D g, int laneIndex, int x, int y, int width, int height) {
@@ -2623,42 +3138,42 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             edge = COLOR_TARGET_SWITCHER;
         }
         if (active || typing) {
-            int pulse = 6 + (int) (pulse(0.18, laneIndex * 17) * 8) + inputPulseTicks;
+            int pulse = sx(6) + (int) (pulse(0.18, laneIndex * 17) * sx(8)) + sx(inputPulseTicks);
             g.setColor(typing ? withAlpha(COLOR_TYPED_PREFIX, 42 + inputPulseTicks * 9) : COLOR_CARD_GLOW);
-            g.fillRoundRect(x - pulse, y - pulse, width + pulse * 2, height + pulse * 2, 10, 10);
+            g.fillRoundRect(x - pulse, y - pulse, width + pulse * 2, height + pulse * 2, sx(10), sy(10));
         }
         if (completed) {
             int age = WORD_COMPLETE_PULSE_TICKS - completePulseTicks;
-            int grow = 18 + age * 4;
+            int grow = sx(18) + sx((int) Math.round(age * GAMEPLAY_STEP_SCALE * 4.0));
             int alpha = Math.max(24, completePulseTicks * 9);
             g.setColor(withAlpha(COLOR_WORD_COMPLETE, Math.max(18, alpha / 3)));
-            g.fillRoundRect(x - grow, y - grow, width + grow * 2, height + grow * 2, 18, 18);
+            g.fillRoundRect(x - grow, y - grow, width + grow * 2, height + grow * 2, sx(18), sy(18));
             g.setStroke(STROKE_WORD_COMPLETE_AURA);
             g.setColor(withAlpha(COLOR_WORD_COMPLETE, alpha));
-            g.drawRoundRect(x - grow, y - grow, width + grow * 2, height + grow * 2, 18, 18);
+            g.drawRoundRect(x - grow, y - grow, width + grow * 2, height + grow * 2, sx(18), sy(18));
             g.setStroke(STROKE_WORD_COMPLETE_CORE);
             g.setColor(withAlpha(Color.WHITE, Math.max(20, alpha / 2)));
-            g.drawRoundRect(x - grow / 2, y - grow / 2, width + grow, height + grow, 14, 14);
+            g.drawRoundRect(x - grow / 2, y - grow / 2, width + grow, height + grow, sx(14), sy(14));
         }
         if (wrong) {
-            int grow = 4 + wrongFlashTicks;
+            int grow = sx(4) + sx((int) Math.round(wrongFlashTicks * GAMEPLAY_STEP_SCALE));
             g.setColor(withAlpha(COLOR_TARGET_SWITCHER, 38 + wrongFlashTicks * 7));
-            g.fillRoundRect(x - grow, y - grow, width + grow * 2, height + grow * 2, 12, 12);
+            g.fillRoundRect(x - grow, y - grow, width + grow * 2, height + grow * 2, sx(12), sy(12));
         }
         g.setColor(COLOR_PANEL_DARK);
-        g.fillRoundRect(x, y, width, height, 8, 8);
+        g.fillRoundRect(x, y, width, height, sx(8), sy(8));
         g.setStroke(active ? STROKE_CARD_ACTIVE : STROKE_CARD_IDLE);
         g.setColor(edge);
-        g.drawRoundRect(x, y, width, height, 8, 8);
+        g.drawRoundRect(x, y, width, height, sx(8), sy(8));
 
         String word = laneWords[laneIndex];
-        drawLaneArrowIcon(g, x + 45, y + height / 2, laneIndex, edge);
+        drawLaneArrowIcon(g, x + sx(45), y + height / 2, laneIndex, edge);
         g.setFont(FONT_LANE_WORD);
         FontMetrics metrics = g.getFontMetrics();
-        int wordAreaX = x + 105;
-        int wordAreaWidth = width - 135;
+        int wordAreaX = x + sx(105);
+        int wordAreaWidth = width - sx(135);
         int textX = wordAreaX + (wordAreaWidth - metrics.stringWidth(word)) / 2;
-        int textY = y + 53;
+        int textY = y + sy(53);
         if (typing) {
             String prefix = word.substring(0, Math.min(typed.length(), word.length()));
             String suffix = word.substring(Math.min(typed.length(), word.length()));
@@ -2675,35 +3190,35 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void drawLaneArrowIcon(Graphics2D g, int x, int y, int laneIndex, Color color) {
         Polygon arrow = new Polygon();
         if (laneIndex == 0) {
-            arrow.addPoint(x, y - 19);
-            arrow.addPoint(x - 18, y + 15);
-            arrow.addPoint(x + 18, y + 15);
+            arrow.addPoint(x, y - sy(19));
+            arrow.addPoint(x - sx(18), y + sy(15));
+            arrow.addPoint(x + sx(18), y + sy(15));
         } else {
-            arrow.addPoint(x, y + 19);
-            arrow.addPoint(x - 18, y - 15);
-            arrow.addPoint(x + 18, y - 15);
+            arrow.addPoint(x, y + sy(19));
+            arrow.addPoint(x - sx(18), y - sy(15));
+            arrow.addPoint(x + sx(18), y - sy(15));
         }
         g.setColor(withAlpha(color, 70));
-        g.fillOval(x - 28, y - 28, 56, 56);
+        g.fillOval(x - sx(28), y - sy(28), sx(56), sy(56));
         g.setColor(color);
         g.fillPolygon(arrow);
     }
 
     void drawPlayer(Graphics2D g) {
         int y = (int) Math.round(playerRenderY());
-        int pulse = 5 + (int) (pulse(0.16, 0) * 6);
+        int pulse = sx(5) + (int) (pulse(0.16, 0) * sx(6));
         g.setColor(COLOR_PLAYER_GLOW);
-        g.fillOval(PLAYER_X - 22 - pulse, y - 22 - pulse, 44 + pulse * 2, 44 + pulse * 2);
+        g.fillOval(PLAYER_X - sx(22) - pulse, y - sy(22) - pulse, sx(44) + pulse * 2, sy(44) + pulse * 2);
         if (laneBarrierCharges[lane] > 0 || calmGuardCharges > 0) {
-            int shield = 31 + (int) (pulse(0.2, 11) * 5);
+            int shield = sx(31) + (int) (pulse(0.2, 11) * sx(5));
             g.setColor(withAlpha(COLOR_WORD_COMPLETE, 110));
             g.drawOval(PLAYER_X - shield, y - shield, shield * 2, shield * 2);
         }
         g.setColor(COLOR_PLAYER);
-        g.fillOval(PLAYER_X - 22, y - 22, 44, 44);
+        g.fillOval(PLAYER_X - sx(22), y - sy(22), sx(44), sy(44));
         g.setColor(COLOR_PLAYER_TEXT);
         g.setFont(uiFont(FONT_TARGET_HP, FONT_PRESSURE_ZH));
-        g.drawString(ui("YOU", "你"), PLAYER_X - (isChinese() ? 7 : 12), y + 5);
+        g.drawString(ui("YOU", "你"), PLAYER_X - sx(isChinese() ? 7 : 12), y + sy(5));
     }
 
     void drawBreakParticles(Graphics2D g) {
@@ -2733,108 +3248,277 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             if (target.hitFlash > 0) {
                 color = Color.WHITE;
             }
-            int w = target.kind == TargetKind.BOSS ? 118 : 92;
-            int h = target.kind == TargetKind.BOSS ? 70 : 50;
-            int glow = target.kind == TargetKind.BOSS ? 10 : 6;
+            int w = target.kind == TargetKind.BOSS ? sx(118) : sx(92);
+            int h = target.kind == TargetKind.BOSS ? sy(70) : sy(50);
+            int glow = target.kind == TargetKind.BOSS ? sx(10) : sx(6);
             g.setColor(COLOR_TARGET_GLOW);
-            g.fillRoundRect(x - w / 2 - glow, y - h / 2 - glow, w + glow * 2, h + glow * 2, 10, 10);
+            g.fillRoundRect(x - w / 2 - glow, y - h / 2 - glow, w + glow * 2, h + glow * 2, sx(10), sy(10));
             g.setColor(color);
-            g.fillRoundRect(x - w / 2, y - h / 2, w, h, 8, 8);
-            if (target.slowTicks > 0 || laneSlowTicks[target.lane] > 0) {
+            g.fillRoundRect(x - w / 2, y - h / 2, w, h, sx(8), sy(8));
+            if (target.freezeTicks > 0) {
+                g.setStroke(STROKE_CARD_ACTIVE);
+                g.setColor(withAlpha(COLOR_DRY_ICE_PULSE, 190));
+                g.drawRoundRect(x - w / 2 - sx(9), y - h / 2 - sy(9), w + sx(18), h + sy(18),
+                        sx(12), sy(12));
+            } else if (target.slowTicks > 0 || laneSlowTicks[target.lane] > 0) {
                 g.setStroke(STROKE_CARD_ACTIVE);
                 g.setColor(withAlpha(COLOR_PIERCE_CORE, 155));
-                g.drawRoundRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 10, 10);
+                g.drawRoundRect(x - w / 2 - sx(6), y - h / 2 - sy(6), w + sx(12), h + sy(12),
+                        sx(10), sy(10));
             }
             if (target.markTicks > 0) {
                 g.setStroke(STROKE_CARD_ACTIVE);
                 g.setColor(withAlpha(COLOR_UPGRADE_READY, 165));
-                g.drawRoundRect(x - w / 2 - 11, y - h / 2 - 11, w + 22, h + 22, 12, 12);
+                g.drawRoundRect(x - w / 2 - sx(11), y - h / 2 - sy(11), w + sx(22), h + sy(22),
+                        sx(12), sy(12));
             }
             g.setColor(COLOR_INK_DARK);
-            g.drawRoundRect(x - w / 2, y - h / 2, w, h, 8, 8);
+            g.drawRoundRect(x - w / 2, y - h / 2, w, h, sx(8), sy(8));
 
             g.setColor(Color.WHITE);
-            drawCentered(g, targetLabel(target), x, y - 4);
-            drawTargetHealthBar(g, target, x, y + h / 2 + 7, w - 18);
+            drawCentered(g, targetLabel(target), x, y - sy(4));
+            drawTargetHealthBar(g, target, x, y + h / 2 + sy(7), w - sx(18));
             g.setFont(FONT_TARGET_HP);
-            drawCentered(g, "HP " + Math.max(0, target.hp), x, y + 18);
+            drawCentered(g, "HP " + Math.max(0, target.hp), x, y + sy(18));
             g.setFont(FONT_TARGET_TITLE);
         }
     }
 
     void drawTargetHealthBar(Graphics2D g, Target target, int cx, int y, int width) {
-        int height = 4;
+        int height = sy(4);
         int filled = Math.max(0, Math.min(width, target.hp * width / Math.max(1, target.maxHp)));
         g.setColor(COLOR_HP_BAR_BACK);
-        g.fillRoundRect(cx - width / 2, y, width, height, 3, 3);
+        g.fillRoundRect(cx - width / 2, y, width, height, sx(3), sy(3));
         g.setColor(COLOR_HP_BAR_FILL);
-        g.fillRoundRect(cx - width / 2, y, filled, height, 3, 3);
+        g.fillRoundRect(cx - width / 2, y, filled, height, sx(3), sy(3));
+    }
+
+    void drawBulletTrailParticles(Graphics2D g) {
+        for (BulletTrailParticle particle : bulletTrailParticles) {
+            double age = 1.0 - particle.life / (double) particle.maxLife;
+            int alpha = Math.max(0, 205 - (int) (age * 205));
+            int x = (int) Math.round(renderX(particle.previousX, particle.x));
+            int y = (int) Math.round(renderY(particle.previousY, particle.y));
+            int size = Math.max(1, (int) Math.round(particle.size * (1.0 - age * 0.58)));
+            if (particle.sides >= 3) {
+                g.setColor(withAlpha(particle.color, alpha / 4));
+                fillParticlePolygon(g, x, y, size, particle.sides, particle.rotation);
+                g.setColor(withAlpha(particle.color, alpha));
+                fillParticlePolygon(g, x, y, Math.max(1, size / 2), particle.sides, -particle.rotation * 0.7);
+            } else {
+                g.setColor(withAlpha(particle.color, alpha / 3));
+                g.fillOval(x - size, y - size, size * 2, size * 2);
+                g.setColor(withAlpha(particle.color, alpha));
+                g.fillOval(x - size / 2, y - size / 2, size, size);
+            }
+        }
+    }
+
+    void fillParticlePolygon(Graphics2D g, int x, int y, int radius, int sides, double rotation) {
+        Polygon polygon = new Polygon();
+        for (int i = 0; i < sides; i++) {
+            double angle = rotation + i * Math.PI * 2.0 / sides;
+            double pointRadius = radius * (0.78 + 0.18 * ((i % 2 == 0) ? 1.0 : 0.35));
+            polygon.addPoint(x + (int) Math.round(Math.cos(angle) * pointRadius),
+                    y + (int) Math.round(Math.sin(angle) * pointRadius));
+        }
+        g.fillPolygon(polygon);
+    }
+
+    void drawIcePulses(Graphics2D g) {
+        g.setStroke(STROKE_SURGE_CORE);
+        for (IcePulse pulse : icePulses) {
+            int age = pulse.maxTicks - pulse.ticks;
+            double eased = easeOutCubic(age / (double) pulse.maxTicks);
+            int radius = 18 + (int) (pulse.radius * eased);
+            int alpha = Math.max(0, 170 - (int) (eased * 150));
+            g.setColor(withAlpha(COLOR_DRY_ICE_PULSE, alpha));
+            g.drawOval((int) pulse.x - radius, (int) pulse.y - radius, radius * 2, radius * 2);
+            g.setColor(withAlpha(COLOR_DRY_ICE_PULSE, alpha / 3));
+            g.fillOval((int) pulse.x - radius / 2, (int) pulse.y - radius / 2, radius, radius);
+        }
+    }
+
+    void applyDryIceHit(Bullet bullet, Target center, int dealt) {
+        double radius = worldAmount(92.0);
+        int splashDamage = Math.max(1, dealt / 2);
+        center.dryIceHitStreak++;
+        center.slowTicks = Math.max(center.slowTicks, logicTicks(70));
+        if (center.dryIceHitStreak >= 3) {
+            center.freezeTicks = Math.max(center.freezeTicks, logicTicks(96));
+            center.dryIceHitStreak = 0;
+        }
+        icePulses.add(new IcePulse(center.x, LANE_Y[center.lane], radius));
+        for (Target target : targets) {
+            if (target == center || target.dead || target.hp <= 0 || target.lane != center.lane) {
+                continue;
+            }
+            if (Math.abs(target.x - center.x) > radius) {
+                continue;
+            }
+            target.hp -= splashDamage;
+            target.slowTicks = Math.max(target.slowTicks, logicTicks(58));
+            target.hitFlash = Math.max(target.hitFlash, logicTicks(8));
+            impacts.add(new Impact(target.x, LANE_Y[target.lane], splashDamage, damageTextColorFor(bullet.kind)));
+        }
     }
 
     void drawBullets(Graphics2D g) {
         for (Bullet bullet : bullets) {
-            int y = LANE_Y[bullet.lane];
+            int y = (int) Math.round(renderY(bullet.previousY, bullet.y));
             int x = (int) Math.round(renderX(bullet.previousX, bullet.x));
             int previousX = (int) Math.round(bullet.previousX);
             if (bullet.kind == BulletKind.PIERCE) {
-                int tail = Math.max(PLAYER_X, previousX - 78);
-                g.setStroke(STROKE_PIERCE_AURA);
-                g.setColor(COLOR_PIERCE_AURA);
-                g.drawLine(tail, y, x, y);
-                g.setStroke(STROKE_PIERCE_CORE);
-                g.setColor(COLOR_PIERCE_CORE);
-                g.drawLine(Math.max(PLAYER_X, previousX - 46), y, x, y);
-                g.setColor(COLOR_PIERCE_HEAD);
-                g.fillOval(x - 12, y - 12, 24, 24);
+                drawLaserBeam(g, bullet);
+                continue;
+            } else if (bullet.kind == BulletKind.HOMING_SHOT) {
+                drawHomingPellet(g, bullet, x, y);
+                continue;
             } else if (bullet.kind == BulletKind.CONTINUOUS_SURGE) {
-                g.setStroke(STROKE_SURGE_AURA);
-                g.setColor(COLOR_SURGE_AURA);
-                g.drawLine(Math.max(PLAYER_X, previousX - 52), y, x, y);
-                g.setStroke(STROKE_SURGE_CORE);
-                g.setColor(COLOR_SURGE_CORE);
-                g.drawLine(Math.max(PLAYER_X, previousX - 34), y, x, y);
+                if (!bullet.particleTrail) {
+                    g.setStroke(STROKE_SURGE_AURA);
+                    g.setColor(COLOR_SURGE_AURA);
+                    g.drawLine(Math.max(PLAYER_X, previousX - sx(52)), y, x, y);
+                    g.setStroke(STROKE_SURGE_CORE);
+                    g.setColor(COLOR_SURGE_CORE);
+                    g.drawLine(Math.max(PLAYER_X, previousX - sx(34)), y, x, y);
+                }
                 g.setColor(COLOR_SURGE_GLOW);
-                g.fillOval(x - 14, y - 14, 28, 28);
+                fillCenteredOval(g, x, y, sx(28), sy(28));
                 g.setColor(COLOR_SURGE_HEAD);
-                g.fillOval(x - 8, y - 8, 16, 16);
+                fillCenteredOval(g, x, y, sx(16), sy(16));
             } else if (bullet.kind == BulletKind.BURST) {
-                g.setStroke(STROKE_SURGE_AURA);
-                g.setColor(COLOR_BURST_AURA);
-                g.drawLine(Math.max(PLAYER_X, previousX - 44), y, x, y);
+                if (!bullet.particleTrail) {
+                    g.setStroke(STROKE_SURGE_AURA);
+                    g.setColor(COLOR_BURST_AURA);
+                    g.drawLine(Math.max(PLAYER_X, previousX - sx(44)), y, x, y);
+                }
                 g.setColor(COLOR_BURST_HEAD);
-                g.fillOval(x - 10, y - 10, 20, 20);
+                fillCenteredOval(g, x, y, sx(20), sy(20));
             } else if (bullet.kind == BulletKind.CONTINUOUS) {
-                g.setStroke(STROKE_CONTINUOUS);
-                g.setColor(COLOR_CONTINUOUS_TRAIL);
-                g.drawLine(Math.max(PLAYER_X, previousX - 14), y, x, y);
+                if (!bullet.particleTrail) {
+                    g.setStroke(STROKE_CONTINUOUS);
+                    g.setColor(COLOR_CONTINUOUS_TRAIL);
+                    g.drawLine(Math.max(PLAYER_X, previousX - sx(14)), y, x, y);
+                }
                 g.setColor(COLOR_CONTINUOUS_HEAD);
-                g.fillOval(x - 3, y - 3, 6, 6);
+                fillCenteredOval(g, x, y, sx(6), sy(6));
+            } else if (bullet.kind == BulletKind.DRY_ICE) {
+                if (!bullet.particleTrail) {
+                    g.setStroke(STROKE_BASIC);
+                    g.setColor(COLOR_BASIC_TRAIL);
+                    g.drawLine(Math.max(PLAYER_X, previousX - sx(34)), y, x, y);
+                }
+                g.setColor(COLOR_DRY_ICE_HEAD);
+                drawDryIcePentagon(g, bullet, x, y);
             } else {
                 g.setStroke(STROKE_BASIC);
                 g.setColor(COLOR_BASIC_TRAIL);
-                g.drawLine(Math.max(PLAYER_X, previousX - 34), y, x, y);
+                g.drawLine(Math.max(PLAYER_X, previousX - sx(34)), y, x, y);
                 g.setColor(COLOR_BASIC_HEAD);
-                g.fillOval(x - 9, y - 9, 18, 18);
+                fillCenteredOval(g, x, y, sx(18), sy(18));
             }
-            int coreRadius = bullet.kind == BulletKind.CONTINUOUS ? 2 : 4;
+            int coreRadius = bullet.kind == BulletKind.CONTINUOUS ? sx(2) : bullet.kind == BulletKind.DRY_ICE ? sx(5) : sx(4);
             g.setColor(Color.WHITE);
             g.fillOval(x - coreRadius, y - coreRadius, coreRadius * 2, coreRadius * 2);
         }
+    }
+
+    void drawLaserBeam(Graphics2D g, Bullet bullet) {
+        double remaining = bullet.maxLifeTicks <= 0 ? 0.0 : bullet.lifeTicks / (double) bullet.maxLifeTicks;
+        double fade = smoothstep(remaining);
+        int y = LANE_Y[bullet.lane];
+        int startX = PLAYER_X + sx(28);
+        int endX = LANE_RIGHT_X;
+        int auraAlpha = (int) (105 * fade);
+        int coreAlpha = (int) (215 * fade);
+        int hotAlpha = (int) (245 * fade);
+
+        g.setStroke(STROKE_LASER_AURA);
+        g.setColor(withAlpha(COLOR_LASER_AURA, auraAlpha));
+        g.drawLine(startX, y, endX, y);
+        g.setStroke(STROKE_LASER_CORE);
+        g.setColor(withAlpha(COLOR_LASER_CORE, coreAlpha));
+        g.drawLine(startX, y, endX, y);
+        g.setStroke(STROKE_LASER_HOT);
+        g.setColor(withAlpha(COLOR_LASER_HOT, hotAlpha));
+        g.drawLine(startX, y, endX, y);
+
+        int flare = sx(18) + (int) Math.round(sx(12) * fade);
+        g.setColor(withAlpha(COLOR_LASER_AURA, auraAlpha));
+        g.fillOval(startX - flare, y - flare, flare * 2, flare * 2);
+        g.setColor(withAlpha(COLOR_LASER_HOT, hotAlpha));
+        fillCenteredOval(g, startX, y, sx(16), sy(16));
+
+        int length = Math.max(1, endX - startX);
+        int glintCount = 7;
+        g.setStroke(STROKE_LASER_HOT);
+        for (int i = 0; i < glintCount; i++) {
+            int offset = (int) ((i * 337L + bullet.lifeTicks * 17L) % length);
+            int glintX = startX + offset;
+            int glintLength = sx(26 + (i % 3) * 10);
+            int glintY = y + sy((i % 2 == 0 ? -1 : 1) * (2 + i % 3));
+            g.setColor(withAlpha(COLOR_LASER_HOT, (int) (90 * fade)));
+            g.drawLine(glintX, glintY, Math.min(endX, glintX + glintLength), glintY);
+        }
+    }
+
+    void drawHomingPellet(Graphics2D g, Bullet bullet, int x, int y) {
+        double angle = Math.atan2(bullet.vy, bullet.vx);
+        int glow = sx(14);
+        g.setColor(withAlpha(COLOR_HOMING_TRAIL, 70));
+        g.fillOval(x - glow, y - glow, glow * 2, glow * 2);
+
+        int tip = sx(11);
+        int side = sx(6);
+        int back = sx(8);
+        double dirX = Math.cos(angle);
+        double dirY = Math.sin(angle);
+        double perpX = -dirY;
+        double perpY = dirX;
+        Polygon dart = new Polygon();
+        dart.addPoint(x + (int) Math.round(dirX * tip), y + (int) Math.round(dirY * tip));
+        dart.addPoint(x + (int) Math.round(-dirX * back + perpX * side),
+                y + (int) Math.round(-dirY * back + perpY * side));
+        dart.addPoint(x + (int) Math.round(-dirX * (back + sx(3))),
+                y + (int) Math.round(-dirY * (back + sx(3))));
+        dart.addPoint(x + (int) Math.round(-dirX * back - perpX * side),
+                y + (int) Math.round(-dirY * back - perpY * side));
+        g.setColor(COLOR_HOMING_HEAD);
+        g.fillPolygon(dart);
+        g.setColor(COLOR_HOMING_CORE);
+        fillCenteredOval(g, x, y, sx(5), sy(5));
+    }
+
+    void fillCenteredOval(Graphics2D g, int x, int y, int width, int height) {
+        g.fillOval(x - width / 2, y - height / 2, width, height);
+    }
+
+    void drawDryIcePentagon(Graphics2D g, Bullet bullet, int x, int y) {
+        Polygon polygon = new Polygon();
+        for (int i = 0; i < bullet.shapeAngles.length; i++) {
+            double angle = bullet.shapeAngles[i] + bullet.shapeRotation;
+            polygon.addPoint(x + (int) Math.round(Math.cos(angle) * bullet.shapeRadii[i]),
+                    y + (int) Math.round(Math.sin(angle) * bullet.shapeRadii[i]));
+        }
+        g.fillPolygon(polygon);
+        g.setColor(COLOR_DRY_ICE_CORE);
+        g.drawPolygon(polygon);
     }
 
     void drawXpOrbs(Graphics2D g) {
         for (XpOrb orb : xpOrbs) {
             int x = (int) Math.round(renderX(orb.previousX, orb.x));
             int y = (int) Math.round(renderY(orb.previousY, orb.y));
-            int pulse = (int) (smoothstep(0.5 + 0.5 * Math.sin(orb.pulse * 0.22)) * 5);
-            int radius = 11 + pulse;
+            int pulse = (int) (smoothstep(0.5 + 0.5 * Math.sin(gameplayStep(orb.pulse) * 0.22)) * sx(5));
+            int radius = sx(11) + pulse;
             g.setColor(COLOR_XP_GLOW);
-            g.fillOval(x - radius - 8, y - radius - 8, (radius + 8) * 2, (radius + 8) * 2);
+            g.fillOval(x - radius - sx(8), y - radius - sy(8), (radius + sx(8)) * 2, (radius + sy(8)) * 2);
             g.setColor(COLOR_XP);
             g.fillOval(x - radius, y - radius, radius * 2, radius * 2);
             g.setColor(COLOR_INK_DARK);
             g.setFont(FONT_ORB);
-            drawCentered(g, "XP" + orb.value, x, y + 4);
+            drawCentered(g, "XP" + orb.value, x, y + sy(4));
         }
     }
 
@@ -2842,18 +3526,37 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     void drawImpacts(Graphics2D g) {
         g.setStroke(STROKE_IMPACT);
         for (Impact impact : impacts) {
-            int age = 14 - impact.ticks;
-            double eased = easeOutCubic(age / 14.0);
-            int radius = 10 + (int) (eased * 42);
-            int alpha = Math.max(35, 210 - (int) (eased * 175));
+            int age = impact.maxTicks - impact.ticks;
+            double progress = age / (double) impact.maxTicks;
+            double eased = easeOutCubic(Math.min(1.0, progress * 1.55));
+            int radius = sx(10) + (int) (eased * sx(42));
+            int alpha = Math.max(20, 210 - (int) (eased * 190));
             g.setColor(withAlpha(COLOR_IMPACT_RING, alpha));
             g.drawOval((int) impact.x - radius, (int) impact.y - radius, radius * 2, radius * 2);
             g.setColor(withAlpha(COLOR_IMPACT_CORE, Math.max(25, alpha - 60)));
-            g.fillOval((int) impact.x - 5, (int) impact.y - 5, 10, 10);
+            fillCenteredOval(g, (int) impact.x, (int) impact.y, sx(10), sy(10));
             if (impact.damage > 0) {
-                g.setColor(Color.WHITE);
-                g.setFont(FONT_IMPACT);
-                g.drawString("-" + impact.damage, (int) impact.x + 12, (int) impact.y - 18);
+                double pop = Math.sin(Math.min(1.0, progress * 1.35) * Math.PI);
+                double fade = 1.0 - smoothstep(Math.max(0.0, (progress - 0.34) / 0.66));
+                int textAlpha = Math.max(0, Math.min(255, (int) (255 * fade)));
+                double scale = 1.02 + pop * 1.05 + (1.0 - progress) * 0.16;
+                float fontSize = (float) (sx(42) * scale);
+                Font popFont = FONT_DAMAGE_POP.deriveFont(fontSize);
+                g.setFont(popFont);
+                FontMetrics metrics = g.getFontMetrics();
+                String text = "-" + impact.damage;
+                int textX = (int) Math.round(impact.x + impact.driftX * progress - metrics.stringWidth(text) / 2.0);
+                int textY = (int) Math.round(impact.y - sy(18) - impact.popHeight * easeOutCubic(progress)
+                        - pop * sy(22));
+                g.setColor(withAlpha(COLOR_INK_DARK, Math.min(220, textAlpha)));
+                g.drawString(text, textX - sx(3), textY + sy(3));
+                g.drawString(text, textX + sx(3), textY + sy(3));
+                g.drawString(text, textX - sx(2), textY - sy(2));
+                g.drawString(text, textX + sx(2), textY - sy(2));
+                g.setColor(impactColorFor(impact, textAlpha));
+                g.drawString(text, textX, textY);
+                g.setColor(withAlpha(Color.WHITE, textAlpha / 3));
+                g.drawString(text, textX - 1, textY - Math.max(2, (int) (fontSize * 0.08)));
             }
         }
     }
