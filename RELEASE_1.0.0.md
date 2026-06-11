@@ -2,7 +2,7 @@
 
 ## Release Goal
 
-Typing Lane 1.0.0 packages the demo as a complete local Java Swing game: clear start state, pause/restart controls, visible versioning, weapon build parity, upgrade-orb decisions, and repeatable smoke verification.
+Typing Lane 1.0.0 packages the game as a complete local Java Swing game: clear start state, pause/restart controls, visible versioning, weapon build parity, upgrade-orb decisions, and repeatable smoke verification.
 
 ## Major Changes
 
@@ -35,7 +35,7 @@ Typing Lane 1.0.0 packages the demo as a complete local Java Swing game: clear s
 
 ## Acceptance Checklist
 
-- `run-typing-lane-demo.ps1 --smoke` passes from `finalProject`.
-- `finalProject\run-typing-lane-demo.ps1 --smoke` passes from the repo root.
-- `finalProject\run-typing-lane-demo.bat --smoke` passes from the repo root.
+- `run-typing-lane.ps1 --smoke` passes from `finalProject`.
+- `finalProject\run-typing-lane.ps1 --smoke` passes from the repo root.
+- `finalProject\run-typing-lane.bat --smoke` passes from the repo root.
 - Manual play can start, pause, resume, restart, choose Boss rewards, collect upgrade orbs, and reach rising pressure without word prompts being covered by enemies.

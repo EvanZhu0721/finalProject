@@ -33,6 +33,7 @@ final class Bullet {
     final int maxLifeTicks;
     final double[] shapeAngles;
     final double[] shapeRadii;
+    Color accentColor;
     double shapeRotation;
     double shapeSpin;
     List<Target> hitTargets;
@@ -44,9 +45,12 @@ final class Bullet {
     double vy;
     double launchX;
     double launchY;
+    double yOffset;
     int pierceLeft;
     int hits;
     int lifeTicks;
+    int remainingDamage;
+    int laserPowerPercent = 100;
     boolean beamResolved;
 
     Bullet(double x, int lane, int damage, int pierceLeft, BulletKind kind) {
@@ -62,10 +66,17 @@ final class Bullet {
         this.launchY = this.y;
         this.lane = lane;
         this.damage = damage;
+        this.remainingDamage = damage;
         this.pierceLeft = pierceLeft;
         this.kind = kind;
         this.particleTrail = particleTrail;
-        if (kind == BulletKind.DRY_ICE) {
+        if (kind == BulletKind.BUBBLE) {
+            this.speed = 5.2;
+            this.radius = GamePanel.worldAmount(42);
+        } else if (kind == BulletKind.OVERFLOW) {
+            this.speed = 42;
+            this.radius = GamePanel.worldAmount(11);
+        } else if (kind == BulletKind.DRY_ICE) {
             this.speed = 20;
             this.radius = GamePanel.worldAmount(22);
         } else if (kind == BulletKind.HOMING_SHOT) {

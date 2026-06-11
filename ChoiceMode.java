@@ -27,6 +27,7 @@ enum ChoiceMode {
     NONE,
     UPGRADE,
     OVERVIEW,
+    SELL_CONFIRM,
     HIGH_REPLACE,
     TEST_BACKEND
 }

@@ -24,17 +24,22 @@ import javax.swing.Timer;
 
 
 enum Difficulty {
-    EASY("Easy", 25, 1.00),
-    NORMAL("Normal", 40, 1.20),
-    HARD("Hard", 60, 1.5);
+    EASY("Easy", 25, 1.00, 1.50, 1.60),
+    NORMAL("Normal", 40, 1.20, 1.25, 1.30),
+    HARD("Hard", 60, 1.5, 1.00, 1.00);
 
     final String label;
     final int typingSpeedWpm;
     final double speedMultiplier;
+    final double bossLaserWarningMultiplier;
+    final double bossBarrageIntervalMultiplier;
 
-    Difficulty(String label, int typingSpeedWpm, double speedMultiplier) {
+    Difficulty(String label, int typingSpeedWpm, double speedMultiplier, double bossLaserWarningMultiplier,
+            double bossBarrageIntervalMultiplier) {
         this.label = label;
         this.typingSpeedWpm = typingSpeedWpm;
         this.speedMultiplier = speedMultiplier;
+        this.bossLaserWarningMultiplier = bossLaserWarningMultiplier;
+        this.bossBarrageIntervalMultiplier = bossBarrageIntervalMultiplier;
     }
 }

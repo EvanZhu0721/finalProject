@@ -28,7 +28,10 @@ final class Impact {
     final double y;
     final int damage;
     final Color damageColor;
-    final double driftX;
+    final double startOffsetX;
+    final double startOffsetY;
+    final double travelX;
+    final double travelY;
     final double popHeight;
     final int maxTicks = GamePanel.logicTicks(34);
     int ticks = maxTicks;
@@ -42,8 +45,24 @@ final class Impact {
         this.y = y;
         this.damage = damage;
         this.damageColor = damageColor;
-        int seed = (int) Math.round(x * 13.0 + y * 7.0 + damage * 31.0);
-        this.driftX = GamePanel.worldAmount(((seed & 7) - 3.5) * 2.4);
-        this.popHeight = GamePanel.worldAmount(38.0 + ((seed >>> 3) & 7) * 2.5);
+        double offsetAngle = Math.random() * Math.PI * 2.0;
+        double offsetDistance = GamePanel.worldAmount(4.0 + Math.random() * 20.0);
+        this.startOffsetX = Math.cos(offsetAngle) * offsetDistance;
+        this.startOffsetY = Math.sin(offsetAngle) * offsetDistance * 0.72;
+
+        double travelAngle = Math.random() * Math.PI * 2.0;
+        double travelDistance = GamePanel.worldAmount(42.0 + Math.random() * 62.0);
+        double nextTravelX = Math.cos(travelAngle) * travelDistance;
+        double nextTravelY = Math.sin(travelAngle) * travelDistance * 0.62 - GamePanel.worldAmount(18.0);
+        double minTravel = GamePanel.worldAmount(28.0);
+        double travelLength = Math.hypot(nextTravelX, nextTravelY);
+        if (travelLength < minTravel) {
+            double scale = minTravel / Math.max(0.001, travelLength);
+            nextTravelX *= scale;
+            nextTravelY *= scale;
+        }
+        this.travelX = nextTravelX;
+        this.travelY = nextTravelY;
+        this.popHeight = GamePanel.worldAmount(24.0 + Math.random() * 24.0);
     }
 }

@@ -25,10 +25,12 @@ import javax.swing.Timer;
 
 enum BulletKind {
     BASIC,
+    BUBBLE,
     CONTINUOUS,
     CONTINUOUS_SURGE,
     PIERCE,
     BURST,
     DRY_ICE,
-    HOMING_SHOT
+    HOMING_SHOT,
+    OVERFLOW
 }

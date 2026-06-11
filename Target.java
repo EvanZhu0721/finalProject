@@ -34,11 +34,24 @@ final class Target {
     boolean dead;
     boolean counted;
     int hitFlash;
-    int phaseTick;
     int slowTicks;
+    double slowMultiplier = 0.55;
     int freezeTicks;
     int dryIceHitStreak;
+    int dryIceThawPulseDamage;
     int markTicks;
+    int laserHitCount;
+    int laserBurnTicks;
+    int laserBurnAgeTicks;
+    int bossAttackCooldownTicks;
+    int bossLaserWarningTicks;
+    int bossLaserLane = -1;
+    int bossDeathTicks;
+    boolean bossDeathAnimating;
+    int bossKnockbackTicks;
+    int bossKnockbackDurationTicks;
+    double bossKnockbackStartX;
+    double bossKnockbackTargetX;
 
     private Target(int lane, TargetKind kind, int hp, double speed) {
         this.lane = lane;
@@ -68,6 +81,6 @@ final class Target {
     }
 
     static Target boss(int lane, int level) {
-        return new Target(lane, TargetKind.BOSS, GamePanel.scaleBossHp(18 + level * 8), 0.55);
+        return new Target(lane, TargetKind.BOSS, GamePanel.scaleBossHp(18 + level * 8), 0.275);
     }
 }

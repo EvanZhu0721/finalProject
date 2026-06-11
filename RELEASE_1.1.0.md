@@ -72,7 +72,6 @@ Typing Lane 1.1.0 focuses on combat feel, high-rarity weapon identity, smoother 
 - Changed Trigger Tuning text so it no longer promises continuous-fire-rate scaling.
 - Made low base-damage attacks still gain at least +1 damage when a positive percentage damage bonus would otherwise round down to 0.
 - Reworked Combo Calibrator from a periodic extra shot into direct damage bonuses at combo 3, 5, and 10.
-- Tightened Error Reset so it requires completing the same word after a mismatch instead of any fast follow-up word.
 - Clarified several upgrade descriptions around non-Boss guards, Backspace-triggered bonuses, same-lane XP pulls, and lane-change collision protection.
 - Changed Boss Breaker to rely on its level-based damage bonus path instead of the removed separate `bossDamageBonus` counter.
 - Added Crossfeed priming on completed f/t/k words and expiration over time.
@@ -101,7 +100,6 @@ Typing Lane 1.1.0 focuses on combat feel, high-rarity weapon identity, smoother 
 - Fixed particle movement and lifetime after the 120 FPS logic change.
 - Fixed target movement, pressure timing, Boss lane-change timing, XP attraction, cooldowns, message timing, and status durations after the 120 FPS logic change.
 - Fixed fullscreen/window scaling assumptions that made the default window open too large.
-- Fixed Error Reset triggering from the wrong completed word after a mismatch.
 - Fixed upgrade offers continuing to show capped upgrades.
 
 ## Verification
@@ -122,15 +120,14 @@ Typing Lane 1.1.0 focuses on combat feel, high-rarity weapon identity, smoother 
   - Homing Shotgun pellet fan, arming, steering, particle trails, and no hidden basic bullet.
   - Dry-Ice Bullet replacement behavior, rotation, splash, slow, pulse, and freeze.
   - Upgrade cap filtering.
-  - Error Reset same-word requirement.
   - Combo Calibrator damage thresholds.
   - Crossfeed priming, use, and expiration.
 - Latest verification commands:
 
 ```text
 javac *.java
-java -cp . TypingLaneDemo --smoke
-java -cp . TypingLaneDemo --perf
+java -cp . TypingLane --smoke
+java -cp . TypingLane --perf
 ```
 
 - Latest observed render benchmark:
@@ -150,5 +147,5 @@ Render benchmark 2560x1440: 9.61 ms/frame, 104.0 FPS equivalent
 - Modified `Impact.java`
 - Modified `SmokeTest.java`
 - Modified `Target.java`
-- Modified `TypingLaneDemo.java`
+- Modified `TypingLane.java`
 - Modified `UpgradeEffect.java`

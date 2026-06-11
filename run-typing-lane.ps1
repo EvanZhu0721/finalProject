@@ -34,14 +34,14 @@ if (-not $javac) {
 if (-not $javac -or -not (Test-Path $javac)) {
     Write-Host "javac was not found on PATH or in the VS Code Java extension JDK."
     Write-Host "Install a JDK, then run this script again."
-    Write-Host "Source file: TypingLaneDemo.java"
+    Write-Host "Source file: TypingLane.java"
     $exitCode = 1
 } else {
     Write-Host "Using compiler: $javac"
-    & $javac TypingLaneDemo.java
+    & $javac TypingLane.java
     $exitCode = $LASTEXITCODE
     if ($exitCode -eq 0) {
-        & $java TypingLaneDemo @args
+        & $java TypingLane @args
         $exitCode = $LASTEXITCODE
     }
 }
